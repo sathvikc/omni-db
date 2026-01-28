@@ -38,5 +38,3 @@ jobs:
       
       # Using --provenance for security verification on npm
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
