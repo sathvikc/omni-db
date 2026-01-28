@@ -23,7 +23,8 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "prepublishOnly": "npm run test:coverage"
   },
   "keywords": [
     "database",
