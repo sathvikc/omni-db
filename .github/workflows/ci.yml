@@ -11,6 +11,32 @@ jobs:
     name: Test & Lint
     runs-on: ubuntu-latest
 
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        # Set health check to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -36,3 +62,44 @@ jobs:
       - name: Check coverage threshold
         # Coverage is checked by vitest config (100%), this step ensures CI fails if not met
         run: echo "Coverage check passed by vitest"
+
+      - name: Verify Real-World Examples
+        run: |
+          node examples/basic-usage.js
+          node examples/failover-demo.js
+          node examples/real-redis.js
+          node examples/real-postgres.js
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+  verify-package:
+    name: Verify Package Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Pack and Install
+        run: |
+          # Create the tarball (simulates npm publish)
+          npm pack
+          
+          # Move tarball to avoid install issues
+          mv omni-db-*.tgz package.tgz
+          
+          # Create a temp test directory
+          mkdir smoke-test
+          cd smoke-test
+          
+          # Initialize minimal package and install our tarball
+          npm init -y
+          npm install ../package.tgz
+          
+          # Create a verification script using the INSTALLED package
+          echo "import { Orchestrator } from 'omni-db'; console.log('✅ Package Import Successful');" > verify.js
+          
+          # Run it
+          node verify.js
