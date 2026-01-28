@@ -38,3 +38,10 @@ jobs:
 
       # --provenance is supported and recommended with OIDC
       - run: npm publish --provenance --access public
+
+      - name: Upload npm logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-logs
+          path: ~/.npm/_logs/*.log
