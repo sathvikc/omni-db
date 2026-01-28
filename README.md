@@ -125,6 +125,20 @@ const prisma = db.get('postgres'); // Type: PrismaClient
 const redis = db.get('redis');     // Type: Redis
 ```
 
+## Documentation
+
+For detailed guides, see the [docs/](./docs/) folder:
+
+| Guide | Description |
+|-------|-------------|
+| [Getting Started](./docs/01-getting-started.md) | Installation and basic usage |
+| [Configuration](./docs/02-configuration.md) | All configuration options |
+| [Health Monitoring](./docs/03-health-monitoring.md) | Health checks and status |
+| [Failover](./docs/04-failover.md) | Automatic failover routing |
+| [Events](./docs/05-events.md) | Event system reference |
+| [TypeScript](./docs/06-typescript.md) | Type definitions and generics |
+| [Examples](./docs/07-examples.md) | Real-world usage patterns |
+
 ## Philosophy
 
 OmniDB is a thin orchestration layer. It doesn't abstract your databases — it orchestrates them.
@@ -139,6 +153,10 @@ OmniDB is a thin orchestration layer. It doesn't abstract your databases — it 
 - Periodic health monitoring
 - Automatic failover routing
 - Event-driven notifications
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 ## License
 
