@@ -70,6 +70,12 @@ async function main() {
 
     await db.disconnect();
     await pgClient.end();
+
+    console.log('✨ Postgres Demo Passed!');
+    process.exit(0);
 }
 
-main().catch(console.error);
+main().catch(err => {
+    console.error('❌ Postgres Demo failed:', err);
+    process.exit(1);
+});

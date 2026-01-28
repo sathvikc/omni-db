@@ -91,6 +91,12 @@ async function main() {
     // Cleanup redis handles
     primaryRedis.disconnect();
     replicaRedis.disconnect();
+
+    console.log('✨ Redis Demo Passed!');
+    process.exit(0);
 }
 
-main().catch(console.error);
+main().catch(err => {
+    console.error('❌ Redis Demo failed:', err);
+    process.exit(1);
+});
