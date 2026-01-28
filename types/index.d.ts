@@ -36,6 +36,24 @@ export type HealthCheckFunction<T = unknown> = (client: T) => Promise<boolean>;
 // ============================================================================
 
 /**
+ * Retry configuration options.
+ */
+export interface RetryConfig {
+    /**
+     * Number of retries before marking unhealthy.
+     * @default 0
+     */
+    retries?: number;
+
+    /**
+     * Delay between retries.
+     * @example '100ms', '1s'
+     * @default '100ms'
+     */
+    delay?: string;
+}
+
+/**
  * Health check configuration options.
  */
 export interface HealthCheckConfig<TConnections extends Record<string, unknown> = Record<string, unknown>> {
@@ -52,6 +70,11 @@ export interface HealthCheckConfig<TConnections extends Record<string, unknown> 
      * @default '5s'
      */
     timeout?: string;
+
+    /**
+     * Retry configuration.
+     */
+    retry?: RetryConfig;
 
     /**
      * Custom health check functions per connection.
