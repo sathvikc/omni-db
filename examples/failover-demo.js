@@ -40,18 +40,13 @@ async function main() {
             primary: 'replica' // If primary fails, use replica
         },
         healthCheck: {
-            interval: '50ms', // Very fast for demo
-            timeout: '20ms'
+            interval: '50ms', // Fast for demo
+            timeout: '20ms',
+            checks: {
+                primary: async (client) => client.ping(),
+                replica: async (client) => client.ping()
+            }
         }
-    });
-
-    // Subscribe to events for logging
-    db.on('failover', ({ primary, backup }) => {
-        console.log(`⚠️ FAILOVER: ${primary} is dead. Switched to ${backup}.`);
-    });
-
-    db.on('recovery', ({ primary, backup }) => {
-        console.log(`✅ RECOVERY: ${primary} is back! Switched back from ${backup}.`);
     });
 
     await db.connect();
@@ -75,12 +70,10 @@ async function main() {
     // Now that health is updated, calling get() should trigger internal failover logic
     console.log('   Triggering access to route to backup...');
 
-    // We can check if failover event fires during this access if we want, 
-    // but just checking the result is enough proof.
     const health = db.health();
-    console.log('   Health:', health.primary.status);
+    console.log('   Health Status:', health.primary.status);
 
-    client = db.get('primary'); // This triggers the FailoverRouter logic
+    client = db.get('primary');
     const result = await client.query();
     console.log('   Querying "primary":', result);
 
@@ -98,7 +91,7 @@ async function main() {
     await healthyPromise;
 
     // 5. Verify Recovery
-    client = db.get('primary'); // Triggers recovery logic if implemented lazy, or just routes back
+    client = db.get('primary');
     const recoveredResult = await client.query();
     console.log('   Querying "primary":', recoveredResult);
 
