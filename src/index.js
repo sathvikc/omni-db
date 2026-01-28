@@ -3,4 +3,4 @@
  * @module omni-db
  */
 
-// Exports will be added as components are implemented
+export { Registry } from './registry.js';
