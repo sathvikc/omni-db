@@ -53,9 +53,6 @@ export class Orchestrator extends EventEmitter {
     /** @type {FailoverRouter} */
     #failoverRouter;
 
-    /** @type {OrchestratorConfig} */
-    #config;
-
     /** @type {boolean} */
     #connected = false;
 
@@ -81,7 +78,7 @@ export class Orchestrator extends EventEmitter {
             throw new Error('At least one connection must be provided');
         }
 
-        this.#config = config;
+
 
         // Initialize health monitor
         this.#healthMonitor = new HealthMonitor(config.healthCheck);

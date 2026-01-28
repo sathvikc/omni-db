@@ -147,7 +147,7 @@ export class HealthMonitor {
             ]);
 
             return result ? 'healthy' : 'unhealthy';
-        } catch (_error) {
+        } catch {
             return 'unhealthy';
         }
     }
