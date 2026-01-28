@@ -138,6 +138,7 @@ For detailed guides, see the [docs/](./docs/) folder:
 | [Events](./docs/05-events.md) | Event system reference |
 | [TypeScript](./docs/06-typescript.md) | Type definitions and generics |
 | [Examples](./docs/07-examples.md) | Real-world usage patterns |
+| [Best Practices](./docs/08-best-practices.md) | Patterns, anti-patterns, and tips |
 
 ## Philosophy
 
