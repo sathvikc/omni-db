@@ -26,7 +26,19 @@ primaryDB.failure();
 await failoverPromise; // Proceeds immediately after failover occurs
 ```
 
-## 2. Robust Health Checks
+## 2. Prevent Flapping (Retry Policy)
+Network glitches happen. Don't let a single failed check mark your DB as dead. configuration retries to suppress transient errors.
+
+```javascript
+healthCheck: {
+    retry: {
+        retries: 3,     // Try 4 times total
+        delay: '100ms'  // Wait 100ms between attempts
+    }
+}
+```
+
+## 3. Robust Health Checks
 
 Your health check function determines whether your app stays up or goes down. Make it robust.
 

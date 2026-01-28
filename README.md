@@ -74,6 +74,8 @@ Creates a new orchestrator instance.
 | `failover` | `Record<string, string>` | Map primary → backup names |
 | `healthCheck.interval` | `string` | Check interval (e.g., `'30s'`, `'1m'`) |
 | `healthCheck.timeout` | `string` | Timeout per check |
+| `healthCheck.retry.retries` | `number` | Failed attempts before marking unhealthy |
+| `healthCheck.retry.delay` | `string` | Waiting time between retries |
 | `healthCheck.checks` | `Record<string, Function>` | Custom health check functions |
 
 ### Methods
