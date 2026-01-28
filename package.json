@@ -3,6 +3,20 @@
   "version": "0.0.0",
   "description": "Thin database orchestration library for Node.js - manage multiple connections with health monitoring and failover",
   "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "types": "./types/index.d.ts"
+    }
+  },
+  "types": "./types/index.d.ts",
+  "files": [
+    "src",
+    "types",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
@@ -17,10 +31,22 @@
     "multi-database",
     "connection-pool",
     "health-check",
-    "failover"
+    "failover",
+    "supabase",
+    "prisma",
+    "mongodb",
+    "redis"
   ],
-  "author": "",
+  "author": "Sathvik C",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sathvikc/omni-db.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sathvikc/omni-db/issues"
+  },
+  "homepage": "https://github.com/sathvikc/omni-db#readme",
   "engines": {
     "node": ">=18.0.0"
   },
