@@ -64,21 +64,23 @@ async function main() {
     // 2. Simulate Failure
     console.log('\n2️⃣  Simulating Primary Failure...');
 
-    // Create the promise BEFORE the action to ensure we don't miss the event
-    // using standard Node.js patterns (no custom helpers needed)
-    const failoverPromise = once(db, 'failover');
-
+    // Wait for HEALTH change (proactive), not failover (lazy)
+    const unhealthyPromise = once(db, 'health:changed');
     primaryClient.setAlive(false);
 
-    console.log('   Waiting for failover event...');
-    await failoverPromise;
+    console.log('   Waiting for health check...');
+    await unhealthyPromise; // This will fire when monitor sees 'unhealthy'
 
     // 3. Verify Failover
-    const health = db.health();
-    console.log('   Health:', health.primary.status, '(Failover to:', health.primary.failoverTo, ')');
+    // Now that health is updated, calling get() should trigger internal failover logic
+    console.log('   Triggering access to route to backup...');
 
-    // get('primary') should now return the replica client transparently
-    client = db.get('primary');
+    // We can check if failover event fires during this access if we want, 
+    // but just checking the result is enough proof.
+    const health = db.health();
+    console.log('   Health:', health.primary.status);
+
+    client = db.get('primary'); // This triggers the FailoverRouter logic
     const result = await client.query();
     console.log('   Querying "primary":', result);
 
@@ -89,14 +91,14 @@ async function main() {
     // 4. Simulate Recovery
     console.log('\n3️⃣  Simulating Primary Recovery...');
 
-    const recoveryPromise = once(db, 'recovery');
+    const healthyPromise = once(db, 'health:changed');
     primaryClient.setAlive(true);
 
-    console.log('   Waiting for recovery event...');
-    await recoveryPromise;
+    console.log('   Waiting for recovery health check...');
+    await healthyPromise;
 
     // 5. Verify Recovery
-    client = db.get('primary');
+    client = db.get('primary'); // Triggers recovery logic if implemented lazy, or just routes back
     const recoveredResult = await client.query();
     console.log('   Querying "primary":', recoveredResult);
 
@@ -106,6 +108,7 @@ async function main() {
 
     await db.disconnect();
     console.log('\n✨ Failover Demo Passed!');
+    process.exit(0);
 }
 
 main().catch(err => {

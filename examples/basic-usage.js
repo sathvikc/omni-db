@@ -54,6 +54,7 @@ async function main() {
     // 6. Cleanup
     await db.disconnect();
     console.log('👋 Demo completed successfully');
+    process.exit(0);
 }
 
 main().catch(err => {
