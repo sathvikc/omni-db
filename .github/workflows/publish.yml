@@ -35,5 +35,8 @@ jobs:
 
       - run: npm ci
       
+      # Set registry for publish
+      - run: npm config set registry https://registry.npmjs.org/
+
       # Using --provenance for security verification on npm
       - run: npm publish --provenance --access public
