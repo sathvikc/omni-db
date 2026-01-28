@@ -42,9 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 7 detailed guides in `docs/` folder
   - MIT License
 
-## [0.0.0] - 2026-01-28
+## [0.1.0] - 2026-01-28
 
-Initial development release. Not yet published to npm.
+Initial development release.
 
-[Unreleased]: https://github.com/sathvikc/omni-db/compare/v0.0.0...HEAD
-[0.0.0]: https://github.com/sathvikc/omni-db/releases/tag/v0.0.0
+[Unreleased]: https://github.com/sathvikc/omni-db/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/sathvikc/omni-db/releases/tag/v0.1.0
