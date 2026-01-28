@@ -198,6 +198,7 @@ export class Orchestrator extends EventEmitter {
         const allStatus = this.#healthMonitor.getAllStatus();
 
         for (const name of this.#registry.list()) {
+            /* c8 ignore next -- defensive fallback; status is always set for registered connections */
             const status = allStatus[name] || 'healthy';
             const isInFailover = this.#failoverRouter.isInFailover(name);
 
