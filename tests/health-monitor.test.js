@@ -202,6 +202,101 @@ describe('HealthMonitor', () => {
 
             expect(receivedClient).toBe(client);
         });
+
+        describe('retry logic', () => {
+            beforeEach(() => {
+                vi.useFakeTimers();
+            });
+
+            afterEach(() => {
+                vi.useRealTimers();
+            });
+
+            it('should retry on failure and eventually succeed', async () => {
+                const retryMonitor = new HealthMonitor({
+                    retry: { retries: 2, delay: '100ms' }
+                });
+
+                let attempts = 0;
+                retryMonitor.register('db1', async () => {
+                    attempts++;
+                    if (attempts <= 2) {
+                        return false; // Fail first 2 times
+                    }
+                    return true; // Succeed on 3rd
+                });
+
+                const checkPromise = retryMonitor.check('db1', {});
+
+                // Fast-forward through delays
+                await vi.advanceTimersByTimeAsync(100); // Attempt 1 -> 2
+                await vi.advanceTimersByTimeAsync(100); // Attempt 2 -> 3
+
+                const status = await checkPromise;
+                expect(status).toBe('healthy');
+                expect(attempts).toBe(3);
+            });
+
+            it('should return unhealthy if retries exhausted', async () => {
+                const retryMonitor = new HealthMonitor({
+                    retry: { retries: 1, delay: '100ms' }
+                });
+
+                let attempts = 0;
+                retryMonitor.register('db1', async () => {
+                    attempts++;
+                    return false;
+                });
+
+                const checkPromise = retryMonitor.check('db1', {});
+
+                await vi.advanceTimersByTimeAsync(200);
+
+                const status = await checkPromise;
+                expect(status).toBe('unhealthy');
+                expect(attempts).toBe(2); // Initial + 1 retry
+            });
+
+            it('should respect custom delay', async () => {
+                const retryMonitor = new HealthMonitor({
+                    retry: { retries: 1, delay: '500ms' }
+                });
+
+                let attempts = 0;
+                retryMonitor.register('db1', async () => {
+                    attempts++;
+                    return false;
+                });
+
+                const checkPromise = retryMonitor.check('db1', {});
+
+                // Should not have retried yet
+                await vi.advanceTimersByTimeAsync(200);
+                expect(attempts).toBe(1);
+
+                // Now it should retry
+                await vi.advanceTimersByTimeAsync(300);
+                expect(attempts).toBe(2); // Retry happened after 500ms total
+
+                await checkPromise;
+            });
+
+            it('should use defaults when retry config is partial', async () => {
+                const retryMonitor = new HealthMonitor({
+                    retry: {} // Should default to retries: 0, delay: '100ms'
+                });
+
+                let attempts = 0;
+                retryMonitor.register('db1', async () => {
+                    attempts++;
+                    return false;
+                });
+
+                const status = await retryMonitor.check('db1', {});
+                expect(status).toBe('unhealthy');
+                expect(attempts).toBe(1); // 0 retries = 1 attempt
+            });
+        });
     });
 
     describe('start() / stop()', () => {
