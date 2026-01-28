@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Coverage
+coverage/
+
+# Build output
+dist/
+
+# IDE
+.ai/
+.gemini/
+.idea/
+.vscode/
+*.swp
+*.swo
+files/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test artifacts
+*.tmp
