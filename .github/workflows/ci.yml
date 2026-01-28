@@ -11,9 +11,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test & Lint
+  quality:
+    name: ⚡ Quality Check
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required for commitlint
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint Commits
+        if: github.event_name == 'pull_request'
+        run: npx commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
+
+      - name: Lint Code
+        run: npm run lint
+
+      - name: Check Formatting
+        run: npm run format -- --check
+
+  test-matrix:
+    name: 🧪 Test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 20, 22]
 
     services:
       redis:
@@ -34,7 +66,6 @@ jobs:
           POSTGRES_DB: postgres
         ports:
           - 5432:5432
-        # Set health check to wait until postgres has started
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -45,27 +76,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Check formatting
-        run: npm run format -- --check
-
-      - name: Lint code
-        run: npm run lint
-
-      - name: Run tests with coverage
+      - name: Run Tests (100% Coverage)
         run: npm run test:coverage
-
-      - name: Check coverage threshold
-        # Coverage is checked by vitest config (100%), this step ensures CI fails if not met
-        run: echo "Coverage check passed by vitest"
 
       - name: Verify Real-World Examples
         run: |
@@ -78,7 +99,8 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
   verify-package:
-    name: Verify Package Build
+    name: 📦 Verify Package
+    needs: [test-matrix]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -89,22 +111,43 @@ jobs:
 
       - name: Pack and Install
         run: |
-          # Create the tarball (simulates npm publish)
           npm pack
-          
-          # Move tarball to avoid install issues
           mv omni-db-*.tgz package.tgz
-          
-          # Create a temp test directory
           mkdir smoke-test
           cd smoke-test
-          
-          # Initialize minimal package and install our tarball
           npm init -y
           npm install ../package.tgz
+
+      - name: Verify Exports & Instantiation
+        run: |
+          cd smoke-test
+          echo "
+          import { Orchestrator } from 'omni-db';
+          import assert from 'node:assert';
           
-          # Create a verification script using the INSTALLED package
-          echo "import { Orchestrator } from 'omni-db'; console.log('✅ Package Import Successful');" > verify.js
+          console.log('Testing Package Imports...');
           
-          # Run it
+          // Verify Class Import
+          assert.ok(Orchestrator, 'Orchestrator should be exported');
+          
+          // Verify Instantiation (Zero Config)
+          // We can't connect without DBs, but we can construct the object
+          // to ensure the constructor validation works/exports are correct.
+          // Currently Orchestrator throws if empty config, so we pass minimal mocks.
+          
+          try {
+            const db = new Orchestrator({
+                connections: { 
+                   mock: { ping: async () => true } 
+                }
+            });
+            assert.ok(db, 'Instance should be created');
+            assert.strictEqual(typeof db.connect, 'function', 'Should have connect method');
+            console.log('✅ Class Instantiation Successful');
+          } catch (err) {
+            console.error('Instantiation Failed:', err);
+            process.exit(1);
+          }
+          " > verify.js
+          
           node verify.js
