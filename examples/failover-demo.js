@@ -9,6 +9,7 @@
  */
 
 import { Orchestrator } from '../src/index.js';
+import { once } from 'node:events'; // Standard Node.js helper for async events
 
 // Mock Client that can be toggled to fail
 const createToggleClient = (name) => {
@@ -44,7 +45,7 @@ async function main() {
         }
     });
 
-    // Subscribe to events to see what's happening
+    // Subscribe to events for logging
     db.on('failover', ({ primary, backup }) => {
         console.log(`⚠️ FAILOVER: ${primary} is dead. Switched to ${backup}.`);
     });
@@ -62,10 +63,15 @@ async function main() {
 
     // 2. Simulate Failure
     console.log('\n2️⃣  Simulating Primary Failure...');
+
+    // Create the promise BEFORE the action to ensure we don't miss the event
+    // using standard Node.js patterns (no custom helpers needed)
+    const failoverPromise = once(db, 'failover');
+
     primaryClient.setAlive(false);
 
-    // Wait for health check to run (interval is 50ms)
-    await new Promise(r => setTimeout(r, 100));
+    console.log('   Waiting for failover event...');
+    await failoverPromise;
 
     // 3. Verify Failover
     const health = db.health();
@@ -82,10 +88,14 @@ async function main() {
 
     // 4. Simulate Recovery
     console.log('\n3️⃣  Simulating Primary Recovery...');
+
+    const recoveryPromise = once(db, 'recovery');
     primaryClient.setAlive(true);
 
-    await new Promise(r => setTimeout(r, 100));
+    console.log('   Waiting for recovery event...');
+    await recoveryPromise;
 
+    // 5. Verify Recovery
     client = db.get('primary');
     const recoveredResult = await client.query();
     console.log('   Querying "primary":', recoveredResult);
