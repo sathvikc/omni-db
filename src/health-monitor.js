@@ -8,9 +8,16 @@
  */
 
 /**
+ * @typedef {Object} RetryConfig
+ * @property {number} [retries=0] - Number of retries before marking unhealthy
+ * @property {string} [delay='100ms'] - Delay between retries
+ */
+
+/**
  * @typedef {Object} HealthCheckOptions
  * @property {string} [interval='30s'] - Check interval
  * @property {string} [timeout='5s'] - Check timeout
+ * @property {RetryConfig} [retry] - Retry configuration
  */
 
 /**
@@ -63,6 +70,9 @@ export class HealthMonitor {
     /** @type {boolean} */
     #running = false;
 
+    /** @type {{ retries: number, delayMs: number } | null} */
+    #retryConfig = null;
+
     /**
      * Create a new HealthMonitor.
      * @param {HealthCheckOptions} [options={}] - Configuration options
@@ -70,6 +80,13 @@ export class HealthMonitor {
     constructor(options = {}) {
         this.#intervalMs = parseDuration(options.interval || '30s');
         this.#timeoutMs = parseDuration(options.timeout || '5s');
+
+        if (options.retry) {
+            this.#retryConfig = {
+                retries: options.retry.retries || 0,
+                delayMs: parseDuration(options.retry.delay || '100ms')
+            };
+        }
     }
 
     /**
@@ -138,18 +155,31 @@ export class HealthMonitor {
             return 'healthy';
         }
 
-        try {
-            const result = await Promise.race([
-                checkFn(client),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Health check timeout')), this.#timeoutMs)
-                ),
-            ]);
+        let attempts = 0;
+        const maxAttempts = (this.#retryConfig?.retries || 0) + 1;
+        const delayMs = this.#retryConfig?.delayMs || 100;
 
-            return result ? 'healthy' : 'unhealthy';
-        } catch {
-            return 'unhealthy';
+        while (attempts < maxAttempts) {
+            attempts++;
+            try {
+                const result = await Promise.race([
+                    checkFn(client),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Health check timeout')), this.#timeoutMs)
+                    ),
+                ]);
+
+                if (result) return 'healthy';
+            } catch {
+                // Ignore error and retry
+            }
+
+            if (attempts < maxAttempts) {
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
         }
+
+        return 'unhealthy';
     }
 
     /**

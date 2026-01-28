@@ -71,6 +71,7 @@ jobs:
         run: |
           node examples/basic-usage.js
           node examples/failover-demo.js
+          node examples/retry-demo.js
           node examples/real-redis.js
           node examples/real-postgres.js
         env:
