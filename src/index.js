@@ -4,3 +4,4 @@
  */
 
 export { Registry } from './registry.js';
+export { Orchestrator } from './orchestrator.js';
