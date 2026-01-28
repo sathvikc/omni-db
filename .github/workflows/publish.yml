@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20' # Node 20 is fine for testing
           cache: 'npm'
       - run: npm ci
       - run: npm run lint
@@ -24,19 +24,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # Required for provenance
+      id-token: write # CRITICAL: Required for OIDC Trusted Publishing
 
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24' # RECOMMENDED: Node 24 includes npm 11.5.1+ required for OIDC
+          registry-url: 'https://registry.npmjs.org' # Sets up .npmrc automatically
           cache: 'npm'
 
       - run: npm ci
-      
-      # Set registry for publish
-      - run: npm config set registry https://registry.npmjs.org/
 
-      # Using --provenance for security verification on npm
+      # --provenance is supported and recommended with OIDC
       - run: npm publish --provenance --access public
