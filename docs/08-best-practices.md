@@ -95,13 +95,42 @@ await getReader().query('SELECT ...');
 
 ## 4. Graceful Shutdown
 
-Always ensure you disconnect OmniDB when your application stops (e.g., `SIGTERM`). This stops the health check timers and closes database connections cleanly.
+Always ensure you disconnect OmniDB when your application stops (e.g., `SIGTERM`). This stops the health check timers and allows database connections to close cleanly.
+
+### ✅ One-Liner with `shutdownOnSignal()`
+
+```javascript
+await db.connect();
+db.shutdownOnSignal(); // Handles SIGTERM, SIGINT automatically
+```
+
+### Options
+
+```javascript
+db.shutdownOnSignal({
+    signals: ['SIGTERM', 'SIGINT', 'SIGHUP'], // Custom signals
+    exitCode: 0,                               // Exit code
+    exitProcess: true                          // Whether to call process.exit()
+});
+```
+
+The method returns a cleanup function if you need to remove the handlers later:
+
+```javascript
+const cleanup = db.shutdownOnSignal();
+// Later...
+cleanup(); // Removes signal handlers
+```
+
+### Manual Approach
+
+If you need custom shutdown logic:
 
 ```javascript
 process.on('SIGTERM', async () => {
-  console.log('Shutting down...');
-  await db.disconnect(); // Stops health checks
-  await closeAllDbClients();
-  process.exit(0);
+    console.log('Shutting down...');
+    await db.disconnect(); // Stops health checks
+    await closeAllDbClients();
+    process.exit(0);
 });
 ```
