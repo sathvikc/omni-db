@@ -102,7 +102,7 @@ jobs:
         run: |
           cd examples
           npm install
-          node basic-usage.ts
+          npx --yes tsx basic-usage.ts
           node failover-demo.js
           node retry-demo.js
           node real-redis.js
