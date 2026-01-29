@@ -5,7 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-01-28
+
+### Added
+
+- **Retry Policy**: Health checks now support retries before marking unhealthy
+  - `healthCheck.retry.retries` - Number of retry attempts
+  - `healthCheck.retry.delay` - Delay between retries (e.g., `'100ms'`)
+  
+- **Graceful Shutdown**: `shutdownOnSignal()` method for clean process termination
+  - Handles `SIGTERM` and `SIGINT` by default
+  - Customizable signals, exit code, and exit behavior
+  - Returns cleanup function to remove handlers
+  - Emits `shutdown` event
+
+- **TypeScript Enhancements**
+  - `RetryConfig` interface
+  - `ShutdownOptions` and `ShutdownEvent` interfaces
+  - Type-check script: `npm run typecheck`
+
+- **CI Improvements**
+  - Parallel jobs (quality, test-matrix, verify-package)
+  - Node.js version matrix (18, 20, 22)
+  - Commit linting with conventional commits
+  - MongoDB service container
+
+- **Examples**
+  - E-commerce API demo with PostgreSQL + Redis + MongoDB
+  - TypeScript example (`basic-usage.ts`)
+  - Updated all examples to use package imports
+
+### Changed
+
+- Updated `docs/08-best-practices.md` with new `shutdownOnSignal()` helper
+
+## [0.1.0] - 2026-01-28
 
 ### Added
 - **Core**
@@ -42,9 +76,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 7 detailed guides in `docs/` folder
   - MIT License
 
-## [0.1.0] - 2026-01-28
-
-Initial development release.
-
-[Unreleased]: https://github.com/sathvikc/omni-db/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/sathvikc/omni-db/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/sathvikc/omni-db/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sathvikc/omni-db/releases/tag/v0.1.0
