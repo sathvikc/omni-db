@@ -49,6 +49,21 @@ async function main() {
         }
     });
 
+    // ─────────────────────────────────────────────────────────────
+    // EVENT LISTENERS (Demonstrating full event system)
+    // ─────────────────────────────────────────────────────────────
+    db.on('connected', (name) => console.log(`   📡 Event: connected - ${name}`));
+    db.on('disconnected', (name) => console.log(`   📡 Event: disconnected - ${name}`));
+    db.on('health:changed', ({ name, previous, current }) => {
+        console.log(`   📡 Event: health:changed - ${name}: ${previous} → ${current}`);
+    });
+    db.on('failover', ({ primary, backup }) => {
+        console.log(`   📡 Event: failover - ${primary} → ${backup}`);
+    });
+    db.on('recovery', ({ primary, backup }) => {
+        console.log(`   📡 Event: recovery - ${primary} recovered (was using ${backup})`);
+    });
+
     await db.connect();
 
     // 1. Initial State
