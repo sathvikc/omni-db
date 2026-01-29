@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/omnidb-logo.png" alt="OmniDB Logo" width="200">
+</p>
+
 # OmniDB
 
 > Thin database orchestration library for Node.js — manage multiple connections with health monitoring and failover.
