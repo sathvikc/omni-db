@@ -67,11 +67,3 @@ export const db = new Orchestrator({
 export const getProductsDB = () => db.get('products');
 export const getCartDB = () => db.get('cart');
 export const getReviewsDB = () => db.get('reviews');
-
-// Graceful shutdown helper
-export async function shutdown() {
-    console.log('🔌 Shutting down database connections...');
-    await db.disconnect();
-    await mongoClient.close();
-    console.log('✅ All connections closed');
-}

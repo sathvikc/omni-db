@@ -8,7 +8,7 @@
  */
 
 import express from 'express';
-import { db, getProductsDB, getCartDB, getReviewsDB, shutdown } from './db.js';
+import { db, getProductsDB, getCartDB, getReviewsDB } from './db.js';
 
 const app = express();
 app.use(express.json());
@@ -130,6 +130,10 @@ async function start() {
         await db.connect();
         console.log('✅ All databases connected');
 
+        // Graceful shutdown with one line!
+        db.shutdownOnSignal();
+        console.log('✨ Graceful shutdown enabled');
+
         app.listen(PORT, () => {
             console.log(`🌐 Server running at http://localhost:${PORT}`);
             console.log('\nEndpoints:');
@@ -145,9 +149,5 @@ async function start() {
         process.exit(1);
     }
 }
-
-// Graceful shutdown
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
 
 start();
