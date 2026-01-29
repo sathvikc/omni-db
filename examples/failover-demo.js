@@ -8,7 +8,7 @@
  * 4. Automatic switch back
  */
 
-import { Orchestrator } from '../src/index.js';
+import { Orchestrator } from 'omni-db';
 import { once } from 'node:events'; // Standard Node.js helper for async events
 
 // Mock Client that can be toggled to fail

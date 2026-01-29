@@ -1,0 +1,12 @@
+{
+    "name": "omni-db-examples",
+    "private": true,
+    "type": "module",
+    "dependencies": {
+        "omni-db": "file:.."
+    },
+    "devDependencies": {
+        "ioredis": "^5.0.0",
+        "pg": "^8.0.0"
+    }
+}

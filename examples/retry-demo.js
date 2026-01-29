@@ -6,7 +6,7 @@
  * 2. Preventing "flapping" (unhealthy status) for transient errors
  */
 
-import { Orchestrator } from '../src/index.js';
+import { Orchestrator } from 'omni-db';
 import { once } from 'node:events';
 
 // Mock Client that fails N times then recovers

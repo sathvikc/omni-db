@@ -7,7 +7,7 @@
  * 3. Using IORedis properly with OmniDB
  */
 
-import { Orchestrator } from '../src/index.js';
+import { Orchestrator } from 'omni-db';
 import Redis from 'ioredis';
 
 async function main() {
