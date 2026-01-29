@@ -88,6 +88,7 @@ Creates a new orchestrator instance.
 | `list()` | `string[]` | Get all connection names |
 | `has(name)` | `boolean` | Check if connection exists |
 | `health()` | `Record<string, ConnectionHealth>` | Get health status |
+| `shutdownOnSignal(opts?)` | `() => void` | Register graceful shutdown handlers |
 | `isConnected` | `boolean` | Connection state |
 | `size` | `number` | Number of connections |
 

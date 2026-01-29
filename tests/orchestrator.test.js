@@ -309,4 +309,141 @@ describe('Orchestrator', () => {
             expect(db.isConnected).toBe(false);
         });
     });
+
+    describe('shutdownOnSignal()', () => {
+        it('should register signal handlers', () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+            });
+
+            const processSpy = vi.spyOn(process, 'on');
+
+            db.shutdownOnSignal();
+
+            // Should register SIGTERM and SIGINT by default
+            expect(processSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
+            expect(processSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
+
+            processSpy.mockRestore();
+        });
+
+        it('should register custom signals', () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+            });
+
+            const processSpy = vi.spyOn(process, 'on');
+
+            db.shutdownOnSignal({ signals: ['SIGHUP'] });
+
+            expect(processSpy).toHaveBeenCalledWith('SIGHUP', expect.any(Function));
+            expect(processSpy).not.toHaveBeenCalledWith('SIGTERM', expect.any(Function));
+
+            processSpy.mockRestore();
+        });
+
+        it('should return cleanup function that removes handlers', () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+            });
+
+            const processOnSpy = vi.spyOn(process, 'on');
+            const processOffSpy = vi.spyOn(process, 'off');
+
+            const cleanup = db.shutdownOnSignal({ signals: ['SIGTERM'] });
+
+            expect(processOnSpy).toHaveBeenCalledTimes(1);
+
+            cleanup();
+
+            expect(processOffSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
+
+            processOnSpy.mockRestore();
+            processOffSpy.mockRestore();
+        });
+
+        it('should emit shutdown event when signal is received', async () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+            });
+
+            await db.connect();
+
+            const shutdownHandler = vi.fn();
+            db.on('shutdown', shutdownHandler);
+
+            // Mock process.exit to prevent actual exit
+            const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { });
+
+            // Capture the handler registered for SIGTERM
+            let signalHandler;
+            const processSpy = vi.spyOn(process, 'on').mockImplementation((signal, handler) => {
+                if (signal === 'SIGTERM') signalHandler = handler;
+                return process;
+            });
+
+            db.shutdownOnSignal({ signals: ['SIGTERM'] });
+
+            // Simulate signal
+            await signalHandler('SIGTERM');
+
+            expect(shutdownHandler).toHaveBeenCalledWith({ signal: 'SIGTERM' });
+            expect(db.isConnected).toBe(false);
+            expect(exitSpy).toHaveBeenCalledWith(0);
+
+            processSpy.mockRestore();
+            exitSpy.mockRestore();
+        });
+
+        it('should not exit process if exitProcess is false', async () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+            });
+
+            await db.connect();
+
+            const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { });
+
+            let signalHandler;
+            const processSpy = vi.spyOn(process, 'on').mockImplementation((signal, handler) => {
+                if (signal === 'SIGTERM') signalHandler = handler;
+                return process;
+            });
+
+            db.shutdownOnSignal({ signals: ['SIGTERM'], exitProcess: false });
+
+            await signalHandler('SIGTERM');
+
+            expect(exitSpy).not.toHaveBeenCalled();
+            expect(db.isConnected).toBe(false);
+
+            processSpy.mockRestore();
+            exitSpy.mockRestore();
+        });
+
+        it('should use custom exit code', async () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+            });
+
+            await db.connect();
+
+            const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { });
+
+            let signalHandler;
+            const processSpy = vi.spyOn(process, 'on').mockImplementation((signal, handler) => {
+                if (signal === 'SIGTERM') signalHandler = handler;
+                return process;
+            });
+
+            db.shutdownOnSignal({ signals: ['SIGTERM'], exitCode: 42 });
+
+            await signalHandler('SIGTERM');
+
+            expect(exitSpy).toHaveBeenCalledWith(42);
+
+            processSpy.mockRestore();
+            exitSpy.mockRestore();
+        });
+    });
 });

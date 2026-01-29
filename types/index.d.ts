@@ -145,6 +145,26 @@ export interface HealthChangedEvent {
 }
 
 /**
+ * Shutdown event payload.
+ */
+export interface ShutdownEvent {
+    /** Signal that triggered the shutdown */
+    signal: string;
+}
+
+/**
+ * Shutdown options for graceful process termination.
+ */
+export interface ShutdownOptions {
+    /** Signals to handle. @default ['SIGTERM', 'SIGINT'] */
+    signals?: string[];
+    /** Exit code after shutdown. @default 0 */
+    exitCode?: number;
+    /** Whether to call process.exit(). @default true */
+    exitProcess?: boolean;
+}
+
+/**
  * Orchestrator event map for TypeScript event typing.
  */
 export interface OrchestratorEvents {
@@ -153,6 +173,7 @@ export interface OrchestratorEvents {
     failover: [event: FailoverEvent];
     recovery: [event: RecoveryEvent];
     'health:changed': [event: HealthChangedEvent];
+    shutdown: [event: ShutdownEvent];
     error: [error: Error];
 }
 
@@ -333,6 +354,22 @@ export declare class Orchestrator<
      * Get the number of registered connections.
      */
     readonly size: number;
+
+    /**
+     * Register signal handlers for graceful shutdown.
+     * @param options Shutdown options
+     * @returns Cleanup function to remove signal handlers
+     *
+     * @example
+     * ```typescript
+     * await db.connect();
+     * db.shutdownOnSignal(); // Handles SIGTERM, SIGINT
+     *
+     * // Or with custom options:
+     * db.shutdownOnSignal({ signals: ['SIGTERM'], exitProcess: false });
+     * ```
+     */
+    shutdownOnSignal(options?: ShutdownOptions): () => void;
 
     // Event emitter overloads for type-safe events
     on<E extends keyof OrchestratorEvents>(

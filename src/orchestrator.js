@@ -225,6 +225,43 @@ export class Orchestrator extends EventEmitter {
     }
 
     /**
+     * Register signal handlers for graceful shutdown.
+     * When a signal is received, calls disconnect() and optionally exits the process.
+     * @param {Object} [options] - Shutdown options
+     * @param {string[]} [options.signals=['SIGTERM', 'SIGINT']] - Signals to handle
+     * @param {number} [options.exitCode=0] - Exit code after shutdown
+     * @param {boolean} [options.exitProcess=true] - Whether to call process.exit()
+     * @returns {() => void} Cleanup function to remove signal handlers
+     */
+    shutdownOnSignal(options = {}) {
+        const {
+            signals = ['SIGTERM', 'SIGINT'],
+            exitCode = 0,
+            exitProcess = true,
+        } = options;
+
+        const handler = async (signal) => {
+            this.emit('shutdown', { signal });
+            await this.disconnect();
+            if (exitProcess) {
+                process.exit(exitCode);
+            }
+        };
+
+        // Register handlers
+        for (const signal of signals) {
+            process.on(signal, handler);
+        }
+
+        // Return cleanup function
+        return () => {
+            for (const signal of signals) {
+                process.off(signal, handler);
+            }
+        };
+    }
+
+    /**
      * Run health checks for all connections.
      * @private
      */
