@@ -1,0 +1,15 @@
+{
+    "name": "ecommerce-api-demo",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "dependencies": {
+        "omni-db": "file:../..",
+        "express": "^4.21.0",
+        "ioredis": "^5.0.0",
+        "pg": "^8.0.0",
+        "mongodb": "^6.0.0"
+    }
+}
