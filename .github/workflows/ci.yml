@@ -90,11 +90,13 @@ jobs:
 
       - name: Verify Real-World Examples
         run: |
-          node examples/basic-usage.js
-          node examples/failover-demo.js
-          node examples/retry-demo.js
-          node examples/real-redis.js
-          node examples/real-postgres.js
+          cd examples
+          npm install
+          node basic-usage.js
+          node failover-demo.js
+          node retry-demo.js
+          node real-redis.js
+          node real-postgres.js
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 

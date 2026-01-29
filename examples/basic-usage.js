@@ -8,7 +8,7 @@
  * 4. Disconnect
  */
 
-import { Orchestrator } from '../src/index.js';
+import { Orchestrator } from 'omni-db';
 
 // 1. Mock Database Clients
 const createMockClient = (name) => ({

@@ -6,7 +6,7 @@
  * 2. Proper health checks using "SELECT 1"
  */
 
-import { Orchestrator } from '../src/index.js';
+import { Orchestrator } from 'omni-db';
 import pg from 'pg';
 const { Client } = pg;
 
