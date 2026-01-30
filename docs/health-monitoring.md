@@ -170,4 +170,4 @@ checks: {
 
 ---
 
-[← Previous: Configuration](./02-configuration.md) | [Next: Failover →](./04-failover.md)
+[← Previous: Configuration](./configuration.md) | [Next: Failover →](./failover.md)

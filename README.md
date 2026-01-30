@@ -140,14 +140,15 @@ For detailed guides, see the [docs/](./docs/) folder:
 
 | Guide | Description |
 |-------|-------------|
-| [Getting Started](./docs/01-getting-started.md) | Installation and basic usage |
-| [Configuration](./docs/02-configuration.md) | All configuration options |
-| [Health Monitoring](./docs/03-health-monitoring.md) | Health checks and status |
-| [Failover](./docs/04-failover.md) | Automatic failover routing |
-| [Events](./docs/05-events.md) | Event system reference |
-| [TypeScript](./docs/06-typescript.md) | Type definitions and generics |
-| [Examples](./docs/07-examples.md) | Real-world usage patterns |
-| [Best Practices](./docs/08-best-practices.md) | Patterns, anti-patterns, and tips |
+| [Getting Started](./docs/getting-started.md) | Installation and basic usage |
+| [Configuration](./docs/configuration.md) | All configuration options |
+| [Health Monitoring](./docs/health-monitoring.md) | Health checks and status |
+| [Failover](./docs/failover.md) | Automatic failover routing |
+| [Events](./docs/events.md) | Event system reference |
+| [Observability](./docs/observability.md) | Prometheus, logging, metrics |
+| [TypeScript](./docs/typescript.md) | Type definitions and generics |
+| [Examples](./docs/examples.md) | Real-world usage patterns |
+| [Best Practices](./docs/best-practices.md) | Patterns, anti-patterns, and tips |
 
 ## Philosophy
 

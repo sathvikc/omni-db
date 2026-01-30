@@ -100,10 +100,10 @@ try {
 
 Now that you have OmniDB running, explore:
 
-- [Configuration](./02-configuration.md) — Learn all configuration options
-- [Health Monitoring](./03-health-monitoring.md) — Set up health checks
-- [Failover](./04-failover.md) — Configure automatic failover
+- [Configuration](./configuration.md) — Learn all configuration options
+- [Health Monitoring](./health-monitoring.md) — Set up health checks
+- [Failover](./failover.md) — Configure automatic failover
 
 ---
 
-[Next: Configuration →](./02-configuration.md)
+[Next: Configuration →](./configuration.md)
