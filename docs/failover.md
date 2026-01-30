@@ -98,19 +98,6 @@ if (status.primary.failoverTo) {
 }
 ```
 
-## Chained Failover
-
-Backups can have their own backups:
-
-```javascript
-failover: {
-  'us-west': 'us-east',
-  'us-east': 'eu-west',
-}
-```
-
-If `us-west` fails, routes to `us-east`. If `us-east` also fails, routes to `eu-west`.
-
 ## Failover Conditions
 
 Failover triggers when:
