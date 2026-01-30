@@ -255,6 +255,7 @@ For detailed guides, see the [docs/](./docs/) folder:
 | [Middleware](./docs/middleware.md) | Express, Fastify, Koa, Hono, NestJS |
 | [TypeScript](./docs/typescript.md) | Type definitions and generics |
 | [Examples](./docs/examples.md) | Real-world usage patterns |
+| [Circuit Breaker](./docs/circuit-breaker.md) | Prevent cascading failures |
 | [Best Practices](./docs/best-practices.md) | Patterns, anti-patterns, and tips |
 
 ## Philosophy
