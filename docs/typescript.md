@@ -255,4 +255,4 @@ async function createDatabase(): Promise<Orchestrator<DatabaseClients>> {
 
 ---
 
-[← Previous: Observability](./observability.md) | [Next: Examples →](./examples.md)
+[← Previous: Middleware](./middleware.md) | [Next: Examples →](./examples.md)
