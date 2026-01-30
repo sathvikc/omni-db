@@ -20,6 +20,112 @@
 - 📦 **Minimal Footprint** — Zero runtime dependencies, <10KB bundle
 - 🔷 **TypeScript Ready** — Full type definitions with generics
 
+## Before & After
+
+<details>
+<summary><strong>❌ Without OmniDB</strong> — 80+ lines of boilerplate</summary>
+
+```javascript
+// DIY: Managing multiple databases with health checks and failover
+
+const primaryPool = new Pool({ connectionString: PRIMARY_URL });
+const replicaPool = new Pool({ connectionString: REPLICA_URL });
+const redis = createClient({ url: REDIS_URL });
+
+let primaryHealthy = true;
+let replicaHealthy = true;
+let redisHealthy = true;
+
+// Manual health check loop
+setInterval(async () => {
+  try {
+    await primaryPool.query('SELECT 1');
+    primaryHealthy = true;
+  } catch {
+    primaryHealthy = false;
+    console.log('[HEALTH] Primary unhealthy');
+  }
+  
+  try {
+    await replicaPool.query('SELECT 1');
+    replicaHealthy = true;
+  } catch {
+    replicaHealthy = false;
+  }
+  
+  try {
+    await redis.ping();
+    redisHealthy = true;
+  } catch {
+    redisHealthy = false;
+  }
+}, 30000);
+
+// Manual failover logic
+function getDatabase() {
+  if (primaryHealthy) return primaryPool;
+  if (replicaHealthy) {
+    console.log('[FAILOVER] Using replica');
+    return replicaPool;
+  }
+  throw new Error('All databases unavailable');
+}
+
+// Manual graceful shutdown
+process.on('SIGTERM', async () => {
+  clearInterval(healthCheckInterval);
+  await Promise.all([
+    primaryPool.end(),
+    replicaPool.end(),
+    redis.quit(),
+  ]);
+  process.exit(0);
+});
+
+// Usage
+app.get('/users', async (req, res) => {
+  const db = getDatabase();
+  const { rows } = await db.query('SELECT * FROM users');
+  res.json(rows);
+});
+```
+
+</details>
+
+<details open>
+<summary><strong>✅ With OmniDB</strong> — 20 lines, zero boilerplate</summary>
+
+```javascript
+import { Orchestrator } from 'omni-db';
+
+const db = new Orchestrator({
+  connections: { primary: primaryPool, replica: replicaPool, cache: redis },
+  failover: { primary: 'replica' },
+  healthCheck: {
+    interval: '30s',
+    checks: {
+      primary: async (c) => { await c.query('SELECT 1'); return true; },
+      replica: async (c) => { await c.query('SELECT 1'); return true; },
+      cache: async (c) => (await c.ping()) === 'PONG',
+    },
+  },
+});
+
+await db.connect();
+db.shutdownOnSignal();
+
+// Usage — identical, but with automatic failover
+app.get('/users', async (req, res) => {
+  const pg = db.get('primary');  // Auto-routes to replica if primary is down
+  const { rows } = await pg.query('SELECT * FROM users');
+  res.json(rows);
+});
+```
+
+</details>
+
+**What you get:** Health monitoring, automatic failover, event system, graceful shutdown, TypeScript types — all in <10KB with zero dependencies.
+
 ## Installation
 
 ```bash
