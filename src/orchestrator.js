@@ -6,6 +6,7 @@
 import { EventEmitter } from 'node:events';
 import { Registry } from './registry.js';
 import { HealthMonitor } from './health-monitor.js';
+import { CircuitBreaker } from './circuit-breaker.js';
 import { FailoverRouter } from './failover-router.js';
 
 /**
@@ -53,6 +54,9 @@ export class Orchestrator extends EventEmitter {
     /** @type {FailoverRouter} */
     #failoverRouter;
 
+    /** @type {Map<string, CircuitBreaker>} */
+    #circuits = new Map();
+
     /** @type {boolean} */
     #connected = false;
 
@@ -90,6 +94,11 @@ export class Orchestrator extends EventEmitter {
         for (const [name, client] of Object.entries(config.connections)) {
             this.#registry.register(name, client);
             this.#healthMonitor.register(name, config.healthCheck?.checks?.[name]);
+
+            // Create circuit breaker per connection if enabled
+            if (config.circuitBreaker) {
+                this.#circuits.set(name, new CircuitBreaker(config.circuitBreaker));
+            }
         }
     }
 
@@ -141,8 +150,16 @@ export class Orchestrator extends EventEmitter {
      * @returns {unknown | undefined} The database client
      * @fires Orchestrator#failover - If routing to backup
      * @fires Orchestrator#recovery - If recovering from failover
+     * @fires Orchestrator#circuit:open - If circuit opens due to failures
      */
     get(name) {
+        // Check circuit breaker if enabled
+        const circuit = this.#circuits.get(name);
+        if (circuit && !circuit.canExecute()) {
+            this.emit('error', new Error(`Circuit open for "${name}"`));
+            return undefined;
+        }
+
         const resolved = this.#failoverRouter.resolve(name, (n) =>
             this.#healthMonitor.getStatus(n)
         );
@@ -169,6 +186,41 @@ export class Orchestrator extends EventEmitter {
         }
 
         return this.#registry.get(resolved.name);
+    }
+
+    /**
+     * Record a successful operation for a connection.
+     * Use this after successful database operations to help circuit breaker recover.
+     * @param {string} name - The connection name
+     * @fires Orchestrator#circuit:close - If circuit closes after success
+     */
+    recordSuccess(name) {
+        const circuit = this.#circuits.get(name);
+        if (!circuit) return;
+
+        const wasOpen = circuit.state !== 'closed';
+        circuit.success();
+
+        if (wasOpen) {
+            this.emit('circuit:close', { name, timestamp: Date.now() });
+        }
+    }
+
+    /**
+     * Record a failed operation for a connection.
+     * Use this after failed database operations to trigger circuit breaker.
+     * @param {string} name - The connection name
+     * @fires Orchestrator#circuit:open - If failure causes circuit to open
+     */
+    recordFailure(name) {
+        const circuit = this.#circuits.get(name);
+        if (!circuit) return;
+
+        const opened = circuit.failure();
+
+        if (opened) {
+            this.emit('circuit:open', { name, timestamp: Date.now() });
+        }
     }
 
     /**
