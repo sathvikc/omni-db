@@ -91,42 +91,69 @@ interface ConnectionHealth {
 
 ```typescript
 import type {
+  ConnectedEvent,
+  DisconnectedEvent,
   FailoverEvent,
   RecoveryEvent,
   HealthChangedEvent,
+  ShutdownEvent,
   OrchestratorEvents,
 } from 'omni-db';
+
+// All events include a timestamp (Unix milliseconds)
+interface ConnectedEvent {
+  name: string;
+  timestamp: number;
+}
+
+interface DisconnectedEvent {
+  name: string;
+  timestamp: number;
+}
 
 interface FailoverEvent {
   primary: string;
   backup: string;
+  timestamp: number;
 }
 
 interface RecoveryEvent {
   primary: string;
   backup: string;
+  timestamp: number;
 }
 
 interface HealthChangedEvent {
   name: string;
   previous: HealthStatus;
   current: HealthStatus;
+  timestamp: number;
+}
+
+interface ShutdownEvent {
+  signal: string;
+  timestamp: number;
 }
 ```
 
 ## Type-Safe Events
 
-Events are fully typed:
+Events are fully typed and include timestamps:
 
 ```typescript
+db.on('connected', (event) => {
+  // event is typed as ConnectedEvent
+  console.log(`${event.name} connected at ${event.timestamp}`);
+});
+
 db.on('failover', (event) => {
   // event is typed as FailoverEvent
-  console.log(event.primary, event.backup);
+  console.log(`${event.primary} → ${event.backup} at ${new Date(event.timestamp).toISOString()}`);
 });
 
 db.on('health:changed', (event) => {
   // event is typed as HealthChangedEvent
-  console.log(event.name, event.previous, event.current);
+  console.log(`[${event.timestamp}] ${event.name}: ${event.previous} → ${event.current}`);
 });
 ```
 
@@ -228,4 +255,4 @@ async function createDatabase(): Promise<Orchestrator<DatabaseClients>> {
 
 ---
 
-[← Previous: Events](./05-events.md) | [Next: Examples →](./07-examples.md)
+[← Previous: Observability](./observability.md) | [Next: Examples →](./examples.md)
