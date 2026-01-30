@@ -473,4 +473,110 @@ describe('Orchestrator', () => {
             exitSpy.mockRestore();
         });
     });
+
+    describe('circuit breaker integration', () => {
+        it('should create circuits when circuitBreaker config is provided', () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+                circuitBreaker: { threshold: 3 },
+            });
+
+            expect(db.get('main')).toBeDefined();
+        });
+
+        it('should return undefined when circuit is open', () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+                circuitBreaker: { threshold: 2 },
+            });
+
+            // Trigger circuit to open
+            db.recordFailure('main');
+            db.recordFailure('main');
+
+            const errorHandler = vi.fn();
+            db.on('error', errorHandler);
+
+            expect(db.get('main')).toBeUndefined();
+            expect(errorHandler).toHaveBeenCalledWith(expect.objectContaining({
+                message: 'Circuit open for "main"',
+            }));
+        });
+
+        it('should emit circuit:open when failures reach threshold', () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+                circuitBreaker: { threshold: 2 },
+            });
+
+            const openHandler = vi.fn();
+            db.on('circuit:open', openHandler);
+
+            db.recordFailure('main');
+            expect(openHandler).not.toHaveBeenCalled();
+
+            db.recordFailure('main');
+            expect(openHandler).toHaveBeenCalledWith(expect.objectContaining({
+                name: 'main',
+                timestamp: expect.any(Number),
+            }));
+        });
+
+        it('should emit circuit:close when circuit recovers', () => {
+            vi.useFakeTimers();
+
+            const db = new Orchestrator({
+                connections: { main: {} },
+                circuitBreaker: { threshold: 1, resetTimeout: 100, halfOpenSuccesses: 1 },
+            });
+
+            const closeHandler = vi.fn();
+            db.on('circuit:close', closeHandler);
+
+            // Open the circuit
+            db.recordFailure('main');
+
+            // Advance to half-open
+            vi.advanceTimersByTime(101);
+
+            // Success in half-open should close
+            db.recordSuccess('main');
+
+            expect(closeHandler).toHaveBeenCalledWith(expect.objectContaining({
+                name: 'main',
+                timestamp: expect.any(Number),
+            }));
+
+            vi.useRealTimers();
+        });
+
+        it('should not emit circuit:close if already closed', () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+                circuitBreaker: { threshold: 3 },
+            });
+
+            const closeHandler = vi.fn();
+            db.on('circuit:close', closeHandler);
+
+            // Record success when circuit is already closed
+            db.recordSuccess('main');
+
+            expect(closeHandler).not.toHaveBeenCalled();
+        });
+
+        it('should do nothing if circuit breaker is not configured', () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+            });
+
+            // These should not throw
+            db.recordSuccess('main');
+            db.recordFailure('main');
+
+            // get should still work
+            expect(db.get('main')).toBeDefined();
+        });
+    });
 });
+
