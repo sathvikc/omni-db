@@ -43,7 +43,7 @@ failover: {
 
 **Rules:**
 - Both primary and backup must exist in `connections`
-- Backup can also have its own backup (chained failover)
+- Backup must exist in `connections`
 - Failover only triggers if health checks are configured
 
 ## healthCheck (optional)
