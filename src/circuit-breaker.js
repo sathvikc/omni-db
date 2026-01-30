@@ -42,9 +42,6 @@ export class CircuitBreaker {
     #successCount = 0;
 
     /** @type {number|null} */
-    #lastFailureTime = null;
-
-    /** @type {number|null} */
     #nextAttemptTime = null;
 
     /** @type {number} */
@@ -151,7 +148,6 @@ export class CircuitBreaker {
         this.#state = 'closed';
         this.#failures = 0;
         this.#successCount = 0;
-        this.#lastFailureTime = null;
         this.#nextAttemptTime = null;
     }
 
@@ -175,7 +171,6 @@ export class CircuitBreaker {
      */
     #onFailure() {
         this.#failures++;
-        this.#lastFailureTime = Date.now();
 
         if (this.#state === 'half-open') {
             // Failed during half-open, go back to open

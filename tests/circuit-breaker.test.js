@@ -51,7 +51,7 @@ describe('CircuitBreaker', () => {
             for (let i = 0; i < 3; i++) {
                 try {
                     await circuit.execute(async () => { throw new Error('fail'); });
-                } catch { }
+                } catch { /* expected */ }
             }
 
             // Should throw circuit open error
@@ -66,7 +66,7 @@ describe('CircuitBreaker', () => {
             for (let i = 0; i < 3; i++) {
                 try {
                     await circuit.execute(async () => { throw new Error('fail'); });
-                } catch { }
+                } catch { /* expected */ }
             }
         });
 
@@ -143,7 +143,7 @@ describe('CircuitBreaker', () => {
             for (let i = 0; i < 3; i++) {
                 try {
                     await circuit.execute(async () => { throw new Error('fail'); });
-                } catch { }
+                } catch { /* expected */ }
             }
             expect(circuit.state).toBe('open');
 
@@ -161,13 +161,13 @@ describe('CircuitBreaker', () => {
             for (let i = 0; i < 4; i++) {
                 try {
                     await defaultCircuit.execute(async () => { throw new Error('fail'); });
-                } catch { }
+                } catch { /* expected */ }
             }
             expect(defaultCircuit.state).toBe('closed');
 
             try {
                 await defaultCircuit.execute(async () => { throw new Error('fail'); });
-            } catch { }
+            } catch { /* expected */ }
             expect(defaultCircuit.state).toBe('open');
         });
 
