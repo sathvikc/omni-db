@@ -202,4 +202,4 @@ omnidb_health == 0 for 5m
 
 ---
 
-[← Previous: Events](./events.md) | [Next: TypeScript →](./typescript.md)
+[← Previous: Events](./events.md) | [Next: Middleware →](./middleware.md)

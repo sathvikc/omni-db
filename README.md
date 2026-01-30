@@ -146,6 +146,7 @@ For detailed guides, see the [docs/](./docs/) folder:
 | [Failover](./docs/failover.md) | Automatic failover routing |
 | [Events](./docs/events.md) | Event system reference |
 | [Observability](./docs/observability.md) | Prometheus, logging, metrics |
+| [Middleware](./docs/middleware.md) | Express, Fastify, Koa, Hono, NestJS |
 | [TypeScript](./docs/typescript.md) | Type definitions and generics |
 | [Examples](./docs/examples.md) | Real-world usage patterns |
 | [Best Practices](./docs/best-practices.md) | Patterns, anti-patterns, and tips |
