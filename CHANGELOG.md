@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-01-29
+
+### Added
+- **Circuit Breaker**: New independent `CircuitBreaker` class and Orchestrator integration to prevent cascading failures.
+  - Configurable `threshold`, `resetTimeout`, and `halfOpenSuccesses`.
+  - Support for `circuit:open` and `circuit:close` events.
+  - `execute()` wrapper for simplified usage.
+- **Event Timestamps**: All emitted events (`health-check`, `failover`, `recovery`, `error`) now include ISO `timestamp`.
+- **Documentation**:
+  - `docs/observability.md`: Guide for Prometheus monitoring and logging.
+  - `docs/middleware.md`: Examples for Express, Fastify, Koa, Hono, and NestJS.
+  - `docs/circuit-breaker.md`: Comprehensive guide to circuit breaker patterns.
+  - Updated `README.md` with "Before & After" comparison section.
+
+### Fixed
+- **Documentation**: Removed incorrect references to "Chained Failover" (not currently linked in implementation).
+
 ## [0.2.0] - 2026-01-28
 
 ### Added
@@ -76,6 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 7 detailed guides in `docs/` folder
   - MIT License
 
-[Unreleased]: https://github.com/sathvikc/omni-db/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/sathvikc/omni-db/compare/v0.3.0...HEAD 
+[0.3.0]: https://github.com/sathvikc/omni-db/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/sathvikc/omni-db/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sathvikc/omni-db/releases/tag/v0.1.0
