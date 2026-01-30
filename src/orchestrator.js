@@ -105,7 +105,7 @@ export class Orchestrator extends EventEmitter {
         }
 
         for (const name of this.#registry.list()) {
-            this.emit('connected', name);
+            this.emit('connected', { name, timestamp: Date.now() });
         }
 
         // Start health monitoring
@@ -128,7 +128,7 @@ export class Orchestrator extends EventEmitter {
         this.#healthMonitor.stop();
 
         for (const name of this.#registry.list()) {
-            this.emit('disconnected', name);
+            this.emit('disconnected', { name, timestamp: Date.now() });
         }
 
         this.#connected = false;
@@ -154,6 +154,7 @@ export class Orchestrator extends EventEmitter {
                 this.emit('failover', {
                     primary: name,
                     backup: resolved.name,
+                    timestamp: Date.now(),
                 });
             }
         } else if (this.#failoverRouter.isInFailover(name)) {
@@ -163,6 +164,7 @@ export class Orchestrator extends EventEmitter {
             this.emit('recovery', {
                 primary: name,
                 backup,
+                timestamp: Date.now(),
             });
         }
 
@@ -241,7 +243,7 @@ export class Orchestrator extends EventEmitter {
         } = options;
 
         const handler = async (signal) => {
-            this.emit('shutdown', { signal });
+            this.emit('shutdown', { signal, timestamp: Date.now() });
             await this.disconnect();
             if (exitProcess) {
                 process.exit(exitCode);
@@ -277,6 +279,7 @@ export class Orchestrator extends EventEmitter {
                     name,
                     previous: previousStatus,
                     current: newStatus,
+                    timestamp: Date.now(),
                 });
             }
         }
