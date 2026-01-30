@@ -106,6 +106,45 @@ export interface OrchestratorConfig<TConnections extends Record<string, unknown>
      * Health check configuration.
      */
     healthCheck?: HealthCheckConfig<TConnections>;
+
+    /**
+     * Circuit breaker configuration.
+     */
+    circuitBreaker?: CircuitBreakerConfig;
+}
+
+/**
+ * Circuit breaker configuration options.
+ */
+export interface CircuitBreakerConfig {
+    /**
+     * Number of failures before opening circuit.
+     * @default 5
+     */
+    threshold?: number;
+
+    /**
+     * Time before attempting half-open state.
+     * @example '30s', '1m', 5000
+     * @default 30000
+     */
+    resetTimeout?: string | number;
+
+    /**
+     * Number of successes needed to close from half-open.
+     * @default 2
+     */
+    halfOpenSuccesses?: number;
+}
+
+/**
+ * Circuit state change event payload.
+ */
+export interface CircuitEvent {
+    /** Connection name */
+    name: string;
+    /** Unix timestamp when the event occurred */
+    timestamp: number;
 }
 
 // ============================================================================
@@ -202,7 +241,71 @@ export interface OrchestratorEvents {
     recovery: [event: RecoveryEvent];
     'health:changed': [event: HealthChangedEvent];
     shutdown: [event: ShutdownEvent];
+    'circuit:open': [event: CircuitEvent];
+    'circuit:close': [event: CircuitEvent];
     error: [error: Error];
+}
+
+// ============================================================================
+// CircuitBreaker Class
+// ============================================================================
+
+/**
+ * Circuit breaker state.
+ */
+export type CircuitState = 'closed' | 'open' | 'half-open';
+
+/**
+ * Simple circuit breaker for preventing cascading failures.
+ * 
+ * @example
+ * ```typescript
+ * const circuit = new CircuitBreaker({ threshold: 3, resetTimeout: '10s' });
+ * 
+ * const result = await circuit.execute(async () => {
+ *   return await db.query('SELECT * FROM users');
+ * });
+ * ```
+ */
+export class CircuitBreaker {
+    /**
+     * Create a new CircuitBreaker.
+     * @param config Circuit breaker configuration
+     */
+    constructor(config?: CircuitBreakerConfig);
+
+    /** Current circuit state */
+    readonly state: CircuitState;
+
+    /** Current failure count */
+    readonly failures: number;
+
+    /**
+     * Check if circuit allows execution.
+     * @returns True if execution is allowed (closed or half-open)
+     */
+    canExecute(): boolean;
+
+    /**
+     * Execute a function with circuit breaker protection.
+     * Automatically records success/failure.
+     * @param fn Async function to execute
+     * @returns Result of the function
+     * @throws Error if circuit is open or function throws
+     */
+    execute<T>(fn: () => Promise<T>): Promise<T>;
+
+    /** Manually record successful operation */
+    success(): void;
+
+    /**
+     * Manually record failed operation.
+     * @returns True if failure caused circuit to open
+     */
+    failure(): boolean;
+
+    /** Force circuit to close */
+    reset(): void;
 }
 
 // ============================================================================
@@ -382,6 +485,20 @@ export declare class Orchestrator<
      * Get the number of registered connections.
      */
     readonly size: number;
+
+    /**
+     * Record a successful operation for a connection.
+     * Helps circuit breaker recover from failures.
+     * @param name Connection name
+     */
+    recordSuccess(name: keyof TConnections): void;
+
+    /**
+     * Record a failed operation for a connection.
+     * May trigger circuit to open if threshold is reached.
+     * @param name Connection name
+     */
+    recordFailure(name: keyof TConnections): void;
 
     /**
      * Register signal handlers for graceful shutdown.
