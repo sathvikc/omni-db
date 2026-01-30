@@ -67,8 +67,29 @@ describe('Orchestrator', () => {
             await db.connect();
 
             expect(handler).toHaveBeenCalledTimes(2);
-            expect(handler).toHaveBeenCalledWith('db1');
-            expect(handler).toHaveBeenCalledWith('db2');
+            expect(handler).toHaveBeenCalledWith(
+                expect.objectContaining({ name: 'db1' })
+            );
+            expect(handler).toHaveBeenCalledWith(
+                expect.objectContaining({ name: 'db2' })
+            );
+        });
+
+        it('should include timestamp in connected events', async () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+            });
+
+            const before = Date.now();
+            const events = [];
+            db.on('connected', (e) => events.push(e));
+
+            await db.connect();
+
+            const after = Date.now();
+            expect(events[0]).toHaveProperty('timestamp');
+            expect(events[0].timestamp).toBeGreaterThanOrEqual(before);
+            expect(events[0].timestamp).toBeLessThanOrEqual(after);
         });
 
         it('should set connected state to true', async () => {
@@ -112,8 +133,12 @@ describe('Orchestrator', () => {
             await db.disconnect();
 
             expect(handler).toHaveBeenCalledTimes(2);
-            expect(handler).toHaveBeenCalledWith('db1');
-            expect(handler).toHaveBeenCalledWith('db2');
+            expect(handler).toHaveBeenCalledWith(
+                expect.objectContaining({ name: 'db1' })
+            );
+            expect(handler).toHaveBeenCalledWith(
+                expect.objectContaining({ name: 'db2' })
+            );
         });
 
         it('should set connected state to false', async () => {
@@ -387,7 +412,9 @@ describe('Orchestrator', () => {
             // Simulate signal
             await signalHandler('SIGTERM');
 
-            expect(shutdownHandler).toHaveBeenCalledWith({ signal: 'SIGTERM' });
+            expect(shutdownHandler).toHaveBeenCalledWith(
+                expect.objectContaining({ signal: 'SIGTERM' })
+            );
             expect(db.isConnected).toBe(false);
             expect(exitSpy).toHaveBeenCalledWith(0);
 

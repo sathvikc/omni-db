@@ -120,6 +120,8 @@ export interface FailoverEvent {
     primary: string;
     /** Name of the backup connection being used */
     backup: string;
+    /** Unix timestamp when the event occurred */
+    timestamp: number;
 }
 
 /**
@@ -130,6 +132,8 @@ export interface RecoveryEvent {
     primary: string;
     /** Name of the backup connection that was being used */
     backup: string;
+    /** Unix timestamp when the event occurred */
+    timestamp: number;
 }
 
 /**
@@ -142,6 +146,8 @@ export interface HealthChangedEvent {
     previous: HealthStatus;
     /** Current health status */
     current: HealthStatus;
+    /** Unix timestamp when the event occurred */
+    timestamp: number;
 }
 
 /**
@@ -150,6 +156,28 @@ export interface HealthChangedEvent {
 export interface ShutdownEvent {
     /** Signal that triggered the shutdown */
     signal: string;
+    /** Unix timestamp when the event occurred */
+    timestamp: number;
+}
+
+/**
+ * Connected event payload.
+ */
+export interface ConnectedEvent {
+    /** Connection name */
+    name: string;
+    /** Unix timestamp when the event occurred */
+    timestamp: number;
+}
+
+/**
+ * Disconnected event payload.
+ */
+export interface DisconnectedEvent {
+    /** Connection name */
+    name: string;
+    /** Unix timestamp when the event occurred */
+    timestamp: number;
 }
 
 /**
@@ -168,8 +196,8 @@ export interface ShutdownOptions {
  * Orchestrator event map for TypeScript event typing.
  */
 export interface OrchestratorEvents {
-    connected: [name: string];
-    disconnected: [name: string];
+    connected: [event: ConnectedEvent];
+    disconnected: [event: DisconnectedEvent];
     failover: [event: FailoverEvent];
     recovery: [event: RecoveryEvent];
     'health:changed': [event: HealthChangedEvent];
