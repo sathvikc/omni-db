@@ -484,7 +484,7 @@ describe('Orchestrator', () => {
             expect(db.get('main')).toBeDefined();
         });
 
-        it('should return undefined when circuit is open', () => {
+        it('should throw when circuit is open', () => {
             const db = new Orchestrator({
                 connections: { main: {} },
                 circuitBreaker: { threshold: 2 },
@@ -494,13 +494,7 @@ describe('Orchestrator', () => {
             db.recordFailure('main');
             db.recordFailure('main');
 
-            const errorHandler = vi.fn();
-            db.on('error', errorHandler);
-
-            expect(db.get('main')).toBeUndefined();
-            expect(errorHandler).toHaveBeenCalledWith(expect.objectContaining({
-                message: 'Circuit open for "main"',
-            }));
+            expect(() => db.get('main')).toThrow('Circuit open for "main"');
         });
 
         it('should emit circuit:open when failures reach threshold', () => {
@@ -637,7 +631,7 @@ describe('Orchestrator', () => {
             db.recordFailure('main'); // Force circuit open
 
             await expect(db.execute('main', () => Promise.resolve()))
-                .rejects.toThrow('Connection "main" is unavailable');
+                .rejects.toThrow('Circuit open for "main"');
         });
 
         it('should throw error without circuit breaker configured', async () => {

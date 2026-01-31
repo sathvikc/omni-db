@@ -214,8 +214,7 @@ export class Orchestrator extends EventEmitter {
         // Check circuit breaker if enabled
         const circuit = this.#circuits.get(name);
         if (circuit && !circuit.canExecute()) {
-            this.emit('error', new Error(`Circuit open for "${name}"`));
-            return undefined;
+            throw new Error(`Circuit open for "${name}"`);
         }
 
         const resolved = this.#failoverRouter.resolve(name, (n) =>
