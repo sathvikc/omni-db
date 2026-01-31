@@ -74,10 +74,7 @@ export class CircuitBreaker {
      */
     async execute(fn) {
         // Check if circuit should transition to half-open
-        if (this.#state === 'open' && this.#nextAttemptTime && Date.now() >= this.#nextAttemptTime) {
-            this.#state = 'half-open';
-            this.#successCount = 0;
-        }
+        this.#tryTransitionToHalfOpen();
 
         // Fast-fail if circuit is open
         if (this.#state === 'open') {
@@ -99,12 +96,18 @@ export class CircuitBreaker {
      * @returns {CircuitState}
      */
     get state() {
-        // Check if we should transition from open to half-open
+        this.#tryTransitionToHalfOpen();
+        return this.#state;
+    }
+
+    /**
+     * Attempt to transition from open to half-open if timeout valid.
+     */
+    #tryTransitionToHalfOpen() {
         if (this.#state === 'open' && this.#nextAttemptTime && Date.now() >= this.#nextAttemptTime) {
             this.#state = 'half-open';
             this.#successCount = 0;
         }
-        return this.#state;
     }
 
     /**
