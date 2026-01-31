@@ -224,6 +224,64 @@ export class Orchestrator extends EventEmitter {
     }
 
     /**
+     * Execute a function with automatic connection handling and circuit breaker protection.
+     * Replaces manual get() + recordSuccess() / recordFailure() usage.
+     * 
+     * @template T
+     * @param {string} name - The connection name
+     * @param {(client: unknown) => Promise<T>} fn - Function to execute
+     * @returns {Promise<T>} Result of the function
+     * @throws {Error} If connection not found or circuit open
+     */
+    async execute(name, fn) {
+        // Resolve connection (handles failover + health + circuit check)
+        // We use .get() internally which already does circuit checks
+        const client = this.get(name);
+
+        if (!client) {
+            // Error was already emitted by get() if circuit was open
+            throw new Error(`Connection "${name}" is unavailable`);
+        }
+
+        // We need to know which actual connection verified by get() we are using 
+        // to record metrics against the correct target (e.g. if failover happened)
+        // However, .get() returns the *client*, not the name.
+        // We need to re-resolve to be sure which name to record against.
+        // Optimization: We could refactor get() to return { client, resolvedName } but that breaks API.
+        // For now, let's re-resolve failover logic quickly or just assume we record against original 'name'
+        // effectively treating failover as transparent to the caller?
+        // Actually, if failover happens, we want to record against the *backup*.
+
+        const resolved = this.#failoverRouter.resolve(name, (n) =>
+            this.#healthMonitor.getStatus(n)
+        );
+        const targetName = resolved.name;
+
+        // Use the circuit breaker for the TARGET connection
+        // We can use the lower-level circuit wrapper if it exists
+        const circuit = this.#circuits.get(targetName);
+
+        if (circuit) {
+            try {
+                // Let the circuit breaker wrapper handle success/failure tracking
+                return await circuit.execute(async () => fn(client));
+            } catch (err) {
+                // circuit.execute() already recorded the failure
+                // We re-throw so user sees the error
+                throw err;
+            }
+        } else {
+            // No circuit breaker, fallback to manual try/catch
+            try {
+                const result = await fn(client);
+                return result; // No stats to record
+            } catch (err) {
+                throw err;
+            }
+        }
+    }
+
+    /**
      * Get all registered connection names.
      * @returns {string[]} Array of connection names
      */
@@ -260,6 +318,28 @@ export class Orchestrator extends EventEmitter {
         }
 
         return result;
+    }
+
+    /**
+     * Get comprehensive statistics for all connections.
+     * Includes health status, circuit breaker state, and failure counts.
+     * @returns {Record<string, object>} Stats per connection
+     */
+    getStats() {
+        const stats = {};
+        const health = this.health();
+
+        for (const name of this.#registry.list()) {
+            const circuit = this.#circuits.get(name);
+            stats[name] = {
+                status: health[name].status,
+                circuit: circuit ? circuit.state : 'n/a',
+                failures: circuit ? circuit.failures : 0,
+                failoverTo: health[name].failoverTo || null
+            };
+        }
+
+        return stats;
     }
 
     /**
@@ -327,6 +407,20 @@ export class Orchestrator extends EventEmitter {
 
             if (newStatus !== previousStatus) {
                 this.#healthMonitor.setStatus(name, newStatus);
+
+                // SYNC: If health check fails, trip the circuit breaker immediately
+                if (newStatus === 'unhealthy') {
+                    const circuit = this.#circuits.get(name);
+                    if (circuit && circuit.state !== 'open') {
+                        circuit.open();
+                        this.emit('circuit:open', {
+                            name,
+                            reason: 'health-check-failed',
+                            timestamp: Date.now()
+                        });
+                    }
+                }
+
                 this.emit('health:changed', {
                     name,
                     previous: previousStatus,

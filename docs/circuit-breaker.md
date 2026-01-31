@@ -115,21 +115,28 @@ const db = new Orchestrator({
   circuitBreaker: { threshold: 3 },
 });
 
-// get() returns undefined if circuit is open
-const pg = db.get('primary');
-if (!pg) {
-  return res.status(503).json({ error: 'Database unavailable' });
-}
-
-// After operations, record result
+// Use db.execute() which handles circuit checks automatically
 try {
-  const result = await pg.query(sql);
-  db.recordSuccess('primary');
+  const result = await db.execute('primary', async (client) => {
+    return await client.query(sql);
+  });
   return result;
 } catch (err) {
-  db.recordFailure('primary');
+  if (err.message.includes('Circuit open')) {
+     return res.status(503).json({ error: 'Database unavailable' });
+  }
   throw err;
 }
+```
+
+### Stats API
+
+Check the status of all circuits instantly:
+
+```javascript
+const stats = db.getStats();
+console.log(stats.primary); 
+// { status: 'healthy', circuit: 'closed', failures: 0, failoverTo: null }
 ```
 
 ---
@@ -213,6 +220,7 @@ class CircuitBreaker {
   success(): void;
   failure(): boolean;
   reset(): void;
+  open(): void;
 }
 ```
 

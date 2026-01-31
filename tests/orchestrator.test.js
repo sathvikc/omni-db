@@ -578,5 +578,137 @@ describe('Orchestrator', () => {
             expect(db.get('main')).toBeDefined();
         });
     });
-});
 
+    describe('execute()', () => {
+        it('should execute function and return result', async () => {
+            const client = { query: vi.fn().mockResolvedValue('result') };
+            const db = new Orchestrator({
+                connections: { main: client },
+                circuitBreaker: { threshold: 3 },
+            });
+
+            const result = await db.execute('main', async (c) => c.query('SELECT 1'));
+            expect(result).toBe('result');
+            expect(client.query).toHaveBeenCalled();
+        });
+
+        it('should record failure on error', async () => {
+            const client = { query: vi.fn().mockRejectedValue(new Error('DB error')) };
+            const db = new Orchestrator({
+                connections: { main: client },
+                circuitBreaker: { threshold: 3 },
+            });
+
+            await expect(db.execute('main', async (c) => c.query())).rejects.toThrow('DB error');
+            expect(db.getStats().main.failures).toBe(1);
+        });
+
+        it('should throw when circuit is open', async () => {
+            const client = { query: vi.fn().mockRejectedValue(new Error('fail')) };
+            const db = new Orchestrator({
+                connections: { main: client },
+                circuitBreaker: { threshold: 2 },
+            });
+
+            // Open the circuit
+            for (let i = 0; i < 2; i++) {
+                try { await db.execute('main', c => c.query()); } catch { /* expected */ }
+            }
+
+            await expect(db.execute('main', c => c.query()))
+                .rejects.toThrow('Circuit open for "main"');
+        });
+
+        it('should work without circuit breaker configured', async () => {
+            const client = { query: vi.fn().mockResolvedValue('ok') };
+            const db = new Orchestrator({ connections: { main: client } });
+
+            const result = await db.execute('main', c => c.query());
+            expect(result).toBe('ok');
+        });
+    });
+
+    describe('getStats()', () => {
+        it('should return status and circuit state for all connections', () => {
+            const db = new Orchestrator({
+                connections: { primary: {}, replica: {} },
+                circuitBreaker: { threshold: 3 },
+            });
+
+            const stats = db.getStats();
+            expect(stats.primary).toEqual({
+                status: 'healthy',
+                circuit: 'closed',
+                failures: 0,
+                failoverTo: null,
+            });
+            expect(stats.replica).toBeDefined();
+        });
+
+        it('should reflect circuit state after failures', async () => {
+            const client = { query: vi.fn().mockRejectedValue(new Error('fail')) };
+            const db = new Orchestrator({
+                connections: { main: client },
+                circuitBreaker: { threshold: 2 },
+            });
+
+            for (let i = 0; i < 2; i++) {
+                try { await db.execute('main', c => c.query()); } catch { /* expected */ }
+            }
+
+            expect(db.getStats().main.circuit).toBe('open');
+            expect(db.getStats().main.failures).toBe(2);
+        });
+
+        it('should show n/a when circuit breaker not configured', () => {
+            const db = new Orchestrator({ connections: { main: {} } });
+            expect(db.getStats().main.circuit).toBe('n/a');
+        });
+    });
+
+    describe('health check triggers circuit open', () => {
+        it('should open circuit when health check fails', async () => {
+            let healthy = true;
+            const db = new Orchestrator({
+                connections: { main: {} },
+                healthCheck: {
+                    interval: '10ms',
+                    checks: { main: async () => { if (!healthy) throw new Error('unhealthy'); return true; } },
+                },
+                circuitBreaker: { threshold: 5 },
+            });
+
+            await db.connect();
+            await new Promise(r => setTimeout(r, 20));
+            expect(db.getStats().main.circuit).toBe('closed');
+
+            healthy = false;
+            await new Promise(r => setTimeout(r, 30));
+
+            expect(db.getStats().main.status).toBe('unhealthy');
+            expect(db.getStats().main.circuit).toBe('open');
+
+            await db.disconnect();
+        });
+
+        it('should emit circuit:open with reason when triggered by health', async () => {
+            const spy = vi.fn();
+            const db = new Orchestrator({
+                connections: { main: {} },
+                healthCheck: { interval: '10ms', checks: { main: async () => false } },
+                circuitBreaker: { threshold: 5 },
+            });
+
+            db.on('circuit:open', spy);
+            await db.connect();
+            await new Promise(r => setTimeout(r, 30));
+
+            expect(spy).toHaveBeenCalledWith(expect.objectContaining({
+                name: 'main',
+                reason: 'health-check-failed',
+            }));
+
+            await db.disconnect();
+        });
+    });
+});

@@ -152,6 +152,15 @@ export class CircuitBreaker {
     }
 
     /**
+     * Force the circuit to open.
+     * Use this when external health checks indicate failure.
+     */
+    open() {
+        this.#state = 'open';
+        this.#nextAttemptTime = Date.now() + this.#resetTimeout;
+    }
+
+    /**
      * Handle successful operation.
      */
     #onSuccess() {
