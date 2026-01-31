@@ -306,6 +306,9 @@ export class CircuitBreaker {
 
     /** Force circuit to close */
     reset(): void;
+
+    /** Force circuit to open immediately */
+    open(): void;
 }
 
 // ============================================================================
@@ -499,6 +502,28 @@ export declare class Orchestrator<
      * @param name Connection name
      */
     recordFailure(name: keyof TConnections): void;
+
+    /**
+     * Execute a function with automatic connection handling and circuit breaker protection.
+     * Replaces manual get() + recordSuccess() / recordFailure() usage.
+     * @param name Connection name
+     * @param fn Function to execute with the client
+     * @returns Result of the function
+     * @throws Error if connection unavailable or circuit open
+     */
+    execute<T>(name: keyof TConnections, fn: (client: TConnections[keyof TConnections]) => Promise<T>): Promise<T>;
+
+    /**
+     * Get comprehensive statistics for all connections.
+     * Includes health status, circuit breaker state, and failure counts.
+     * @returns Stats per connection
+     */
+    getStats(): Record<keyof TConnections, {
+        status: HealthStatus;
+        circuit: CircuitState | 'n/a';
+        failures: number;
+        failoverTo: keyof TConnections | null;
+    }>;
 
     /**
      * Register signal handlers for graceful shutdown.

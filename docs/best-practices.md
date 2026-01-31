@@ -2,7 +2,34 @@
 
 To build production-grade applications with OmniDB, follow these recommended patterns.
 
-## 1. Event-Driven Logic (Don't Sleep!)
+## 1. Use `db.execute()` (Avoid Manual Tracking)
+
+### ❌ Anti-Pattern: Manual `get()` + `record`
+Manually getting a connection, checking for failures, and recording success/failure is error-prone and verbose.
+
+```javascript
+// Don't do this
+const pg = db.get('primary'); // what if it's null?
+try {
+  await pg.query(...);
+  db.recordSuccess('primary'); // easy to forget!
+} catch (e) {
+  db.recordFailure('primary');
+  throw e;
+}
+```
+
+### ✅ Pattern: Automatic Execution Wrapper
+Use the `execute()` wrapper which handles connection lookup, circuit checks, and recording metrics automatically.
+
+```javascript
+// Do this
+const result = await db.execute('primary', async (client) => {
+  return await client.query('SELECT * FROM users');
+});
+```
+
+## 2. Event-Driven Logic (Don't Sleep!)
 
 ### ❌ Anti-Pattern: Sleeping / Polling
 Waiting for a fixed amount of time is brittle. In CI/CD or clouded environments, 100ms might not be enough, causing flaky tests.
@@ -26,7 +53,7 @@ primaryDB.failure();
 await failoverPromise; // Proceeds immediately after failover occurs
 ```
 
-## 2. Prevent Flapping (Retry Policy)
+## 3. Prevent Flapping (Retry Policy)
 Network glitches happen. Don't let a single failed check mark your DB as dead. configuration retries to suppress transient errors.
 
 ```javascript
@@ -38,7 +65,7 @@ healthCheck: {
 }
 ```
 
-## 3. Robust Health Checks
+## 4. Robust Health Checks
 
 Your health check function determines whether your app stays up or goes down. Make it robust.
 
@@ -68,7 +95,7 @@ check: async (client) => {
 }
 ```
 
-## 3. Read/Write Splitting
+## 5. Read/Write Splitting
 
 You can use OmniDB to route traffic to Read Replicas while keeping a specific Primary for writes.
 
@@ -93,7 +120,7 @@ await db.get('writer').query('INSERT ...');
 await getReader().query('SELECT ...');
 ```
 
-## 4. Graceful Shutdown
+## 6. Graceful Shutdown
 
 Always ensure you disconnect OmniDB when your application stops (e.g., `SIGTERM`). This stops the health check timers and allows database connections to close cleanly.
 
