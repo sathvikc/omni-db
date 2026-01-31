@@ -97,9 +97,67 @@ export class Orchestrator extends EventEmitter {
 
             // Create circuit breaker per connection if enabled
             if (config.circuitBreaker) {
-                this.#circuits.set(name, new CircuitBreaker(config.circuitBreaker));
+                const cbConfig = config.circuitBreaker;
+
+                // Support external circuit breakers (opossum, cockatiel, etc.)
+                if (cbConfig.use && typeof cbConfig.use === 'object') {
+                    // User provided their own circuit breaker instance
+                    // Wrap it to normalize the interface
+                    this.#circuits.set(name, this.#wrapExternalCircuit(cbConfig.use));
+                } else {
+                    // Use built-in circuit breaker
+                    this.#circuits.set(name, new CircuitBreaker(cbConfig));
+                }
             }
         }
+    }
+
+    /**
+     * Wrap an external circuit breaker to normalize the interface.
+     * Supports opossum (.fire), cockatiel (.execute), and others.
+     * @param {object} external - External circuit breaker instance
+     * @returns {object} - Normalized circuit breaker interface
+     */
+    #wrapExternalCircuit(external) {
+        return {
+            // Determine which method the external circuit uses
+            execute: async (fn) => {
+                if (typeof external.fire === 'function') {
+                    // Opossum uses .fire()
+                    return external.fire(fn);
+                } else if (typeof external.execute === 'function') {
+                    // Cockatiel and others use .execute()
+                    return external.execute(fn);
+                } else {
+                    throw new Error('External circuit breaker must have execute() or fire() method');
+                }
+            },
+            // Expose state if available, otherwise return 'external'
+            get state() {
+                if (typeof external.status === 'object' && external.status.state) {
+                    return external.status.state; // opossum format
+                }
+                return 'external';
+            },
+            get failures() {
+                if (typeof external.stats === 'object') {
+                    return external.stats.failures || 0;
+                }
+                return 0;
+            },
+            canExecute: () => {
+                // Check opossum's closed state
+                if (typeof external.status === 'object') {
+                    return external.status.state !== 'open';
+                }
+                return true; // Assume can execute if we can't determine
+            },
+            open: () => {
+                if (typeof external.open === 'function') {
+                    external.open();
+                }
+            }
+        };
     }
 
     /**
