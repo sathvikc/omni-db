@@ -634,6 +634,11 @@ describe('Orchestrator', () => {
                 .rejects.toThrow('Circuit open for "main"');
         });
 
+        it('should throw when connection does not exist', async () => {
+            const db = new Orchestrator({ connections: { main: {} } });
+            await expect(db.execute('missing', async () => { })).rejects.toThrow('Connection "missing" is unavailable');
+        });
+
         it('should throw error without circuit breaker configured', async () => {
             const client = { query: vi.fn().mockRejectedValue(new Error('DB down')) };
             const db = new Orchestrator({ connections: { main: client } });
