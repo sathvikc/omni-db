@@ -167,6 +167,12 @@ describe('HealthMonitor', () => {
             expect(status).toBe('unhealthy');
         });
 
+        it('should return degraded when check returns "degraded"', async () => {
+            monitor.register('db1', async () => 'degraded');
+            const status = await monitor.check('db1', {});
+            expect(status).toBe('degraded');
+        });
+
         it('should return unhealthy when check throws', async () => {
             monitor.register('db1', async () => {
                 throw new Error('Connection failed');

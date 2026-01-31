@@ -29,7 +29,7 @@ export interface ConnectionHealth {
  * @param client The database client instance
  * @returns Promise resolving to true if healthy, false otherwise
  */
-export type HealthCheckFunction<T = unknown> = (client: T) => Promise<boolean>;
+export type HealthCheckFunction<T = unknown> = (client: T) => Promise<boolean | 'healthy' | 'degraded'>;
 
 // ============================================================================
 // Configuration Types

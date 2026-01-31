@@ -54,8 +54,8 @@ export class FailoverRouter {
     resolve(name, getStatus) {
         const status = getStatus(name);
 
-        // If healthy or no status tracking, return original
-        if (status === 'healthy' || status === undefined) {
+        // If healthy, degraded, or no status tracking, return original
+        if (status === 'healthy' || status === 'degraded' || status === undefined) {
             return { name, isFailover: false };
         }
 

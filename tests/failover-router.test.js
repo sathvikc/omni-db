@@ -82,13 +82,13 @@ describe('FailoverRouter', () => {
             expect(result).toEqual({ name: 'backup', isFailover: true });
         });
 
-        it('should return backup when primary is degraded', () => {
+        it('should return original when primary is degraded', () => {
             const statuses = { primary: 'degraded', backup: 'healthy' };
             const getStatus = (name) => statuses[name];
 
             const result = router.resolve('primary', getStatus);
 
-            expect(result).toEqual({ name: 'backup', isFailover: true });
+            expect(result).toEqual({ name: 'primary', isFailover: false });
         });
 
         it('should return original when no failover configured', () => {
