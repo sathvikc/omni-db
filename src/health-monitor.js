@@ -169,7 +169,8 @@ export class HealthMonitor {
                     ),
                 ]);
 
-                if (result) return 'healthy';
+                if (result === 'degraded') return 'degraded';
+                if (result === true || result === 'healthy') return 'healthy';
             } catch {
                 // Ignore error and retry
             }
