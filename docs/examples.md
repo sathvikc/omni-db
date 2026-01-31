@@ -288,3 +288,6 @@ setInterval(() => {
 - [Configuration](./configuration.md)
 - [GitHub Repository](https://github.com/sathvikc/omni-db)
 
+---
+
+[← Previous: TypeScript](./typescript.md) | [Next: Best Practices →](./best-practices.md)

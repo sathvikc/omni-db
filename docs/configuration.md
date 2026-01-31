@@ -131,4 +131,4 @@ const db = new Orchestrator({
 
 ---
 
-[← Previous: Getting Started](./getting-started.md) | [Next: Health Monitoring →](./health-monitoring.md)
+[← Previous: Getting Started](./getting-started.md) | [Next: Architecture →](./architecture.md)

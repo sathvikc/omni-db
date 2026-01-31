@@ -162,4 +162,4 @@ The `get()` method returns the client, not the resolved name. But we need to kno
 
 ---
 
-[← Back to README](../README.md) | [Error Reference →](./errors.md)
+[← Previous: Configuration](./configuration.md) | [Next: Health Monitoring →](./health-monitoring.md)
