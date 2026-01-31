@@ -168,6 +168,13 @@ checks: {
 }
 ```
 
+```
+
+### 4. Circuit Breaker Integration
+
+- **Unhealthy**: Circuit immediately opens (`circuit:open`).
+- **Healthy**: Circuit does **not** automatically close. It must pass the configured successes (half-open check) to ensure stability before closing. This prevents "flapping" connections.
+
 ---
 
 [← Previous: Architecture](./architecture.md) | [Next: Failover →](./failover.md)

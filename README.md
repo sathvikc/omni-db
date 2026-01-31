@@ -10,6 +10,7 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
 [![Tests](https://img.shields.io/badge/tests-165%20passing-brightgreen)](https://github.com/sathvikc/omni-db)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/sathvikc/omni-db)
+[![CI](https://github.com/sathvikc/omni-db/actions/workflows/ci.yml/badge.svg)](https://github.com/sathvikc/omni-db/actions/workflows/ci.yml)
 
 ## Features
 
