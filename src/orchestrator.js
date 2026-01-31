@@ -258,26 +258,14 @@ export class Orchestrator extends EventEmitter {
         const targetName = resolved.name;
 
         // Use the circuit breaker for the TARGET connection
-        // We can use the lower-level circuit wrapper if it exists
         const circuit = this.#circuits.get(targetName);
 
         if (circuit) {
-            try {
-                // Let the circuit breaker wrapper handle success/failure tracking
-                return await circuit.execute(async () => fn(client));
-            } catch (err) {
-                // circuit.execute() already recorded the failure
-                // We re-throw so user sees the error
-                throw err;
-            }
+            // Circuit breaker wrapper handles success/failure tracking
+            return await circuit.execute(async () => fn(client));
         } else {
-            // No circuit breaker, fallback to manual try/catch
-            try {
-                const result = await fn(client);
-                return result; // No stats to record
-            } catch (err) {
-                throw err;
-            }
+            // No circuit breaker configured
+            return await fn(client);
         }
     }
 
