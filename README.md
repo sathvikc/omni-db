@@ -248,15 +248,17 @@ For detailed guides, see the [docs/](./docs/) folder:
 |-------|-------------|
 | [Getting Started](./docs/getting-started.md) | Installation and basic usage |
 | [Configuration](./docs/configuration.md) | All configuration options |
+| [Architecture](./docs/architecture.md) | How components work together |
 | [Health Monitoring](./docs/health-monitoring.md) | Health checks and status |
 | [Failover](./docs/failover.md) | Automatic failover routing |
+| [Circuit Breaker](./docs/circuit-breaker.md) | Prevent cascading failures |
 | [Events](./docs/events.md) | Event system reference |
 | [Observability](./docs/observability.md) | Prometheus, logging, metrics |
 | [Middleware](./docs/middleware.md) | Express, Fastify, Koa, Hono, NestJS |
 | [TypeScript](./docs/typescript.md) | Type definitions and generics |
 | [Examples](./docs/examples.md) | Real-world usage patterns |
-| [Circuit Breaker](./docs/circuit-breaker.md) | Prevent cascading failures |
 | [Best Practices](./docs/best-practices.md) | Patterns, anti-patterns, and tips |
+| [Error Reference](./docs/errors.md) | All errors with causes and solutions |
 
 ## Philosophy
 
