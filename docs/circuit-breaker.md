@@ -105,6 +105,71 @@ if (circuit.canExecute()) {
 
 ---
 
+## External Circuit Breakers
+
+Prefer a battle-tested library like **opossum** or **cockatiel**? OmniDB can wrap them:
+
+### With Opossum
+
+```javascript
+import { Orchestrator } from 'omni-db';
+import CircuitBreaker from 'opossum';
+
+// Configure opossum with all its features
+const opossumCircuit = new CircuitBreaker(async (client, query) => {
+  return client.query(query);
+}, {
+  timeout: 3000,                // Request timeout
+  errorThresholdPercentage: 50, // Open at 50% failure rate
+  resetTimeout: 30000,          // 30s before half-open
+  volumeThreshold: 10,          // Minimum requests before checking
+});
+
+// Pass to OmniDB
+const db = new Orchestrator({
+  connections: { primary: pgPool },
+  circuitBreaker: { use: opossumCircuit },
+});
+
+// OmniDB calls opossum's .fire() internally
+await db.execute('primary', (client) => client.query('SELECT 1'));
+```
+
+### With Cockatiel
+
+```javascript
+import { Orchestrator } from 'omni-db';
+import { CircuitBreakerPolicy, ConsecutiveBreaker } from 'cockatiel';
+
+const cockatielCircuit = new CircuitBreakerPolicy({
+  halfOpenAfter: 30_000,
+  breaker: new ConsecutiveBreaker(5),
+});
+
+const db = new Orchestrator({
+  connections: { primary: pgPool },
+  circuitBreaker: { use: cockatielCircuit },
+});
+```
+
+### Why Use External?
+
+| Feature | Built-in | Opossum | Cockatiel |
+|---------|----------|---------|-----------|
+| Threshold-based | ✅ | ✅ | ✅ |
+| Percentage-based | ❌ | ✅ | ❌ |
+| Rolling windows | ❌ | ✅ | ❌ |
+| Fallback functions | ❌ | ✅ | ✅ |
+| Request timeout | ❌ | ✅ | ✅ |
+| Volume threshold | ❌ | ✅ | ❌ |
+| Retry policies | ❌ | ❌ | ✅ |
+| Bulkhead isolation | ❌ | ❌ | ✅ |
+| Zero dependencies | ✅ | ❌ | ❌ |
+
+Use the **built-in** circuit breaker for simple cases. Use **opossum** for percentage-based thresholds or **cockatiel** for retry/bulkhead patterns.
+
+---
+
 ## With Orchestrator
 
 When configured, the Orchestrator creates a circuit per connection:
