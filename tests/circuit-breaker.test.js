@@ -111,6 +111,16 @@ describe('CircuitBreaker', () => {
 
             vi.useRealTimers();
         });
+
+        it('should transition to half-open when accessing state getter after timeout', async () => {
+            vi.useFakeTimers();
+            vi.advanceTimersByTime(1001);
+
+            // Accessing state should trigger validation and transition
+            expect(circuit.state).toBe('half-open');
+
+            vi.useRealTimers();
+        });
     });
 
     describe('manual success/failure', () => {
