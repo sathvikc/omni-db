@@ -114,6 +114,38 @@ export interface OrchestratorConfig<TConnections extends Record<string, unknown>
 }
 
 /**
+ * External circuit breaker interface.
+ * Compatible with opossum (.fire), cockatiel (.execute), and similar libraries.
+ */
+export interface ExternalCircuitBreaker {
+    /**
+     * Execute a function through the circuit breaker.
+     * At least one of execute() or fire() must be implemented.
+     */
+    execute?<T>(fn: () => Promise<T>): Promise<T>;
+
+    /**
+     * Execute a function through the circuit breaker (opossum style).
+     */
+    fire?<T>(fn: () => Promise<T>): Promise<T>;
+
+    /**
+     * Force the circuit to open (optional).
+     */
+    open?(): void;
+
+    /**
+     * Circuit status (optional, for stats reporting).
+     */
+    status?: { state?: string };
+
+    /**
+     * Circuit stats (optional, for stats reporting).
+     */
+    stats?: { failures?: number };
+}
+
+/**
  * Circuit breaker configuration options.
  */
 export interface CircuitBreakerConfig {
@@ -135,6 +167,23 @@ export interface CircuitBreakerConfig {
      * @default 2
      */
     halfOpenSuccesses?: number;
+
+    /**
+     * External circuit breaker instance (e.g., opossum, cockatiel).
+     * When provided, the built-in circuit breaker is not used.
+     * The external instance must have either execute() or fire() method.
+     * 
+     * @example
+     * ```typescript
+     * import CircuitBreaker from 'opossum';
+     * 
+     * const db = new Orchestrator({
+     *   connections: { primary: pg },
+     *   circuitBreaker: { use: new CircuitBreaker(fn, opts) }
+     * });
+     * ```
+     */
+    use?: ExternalCircuitBreaker;
 }
 
 /**

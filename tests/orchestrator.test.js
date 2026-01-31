@@ -732,4 +732,116 @@ describe('Orchestrator', () => {
             await db.disconnect();
         });
     });
+
+    describe('External Circuit Breaker', () => {
+        it('should use external circuit with .fire() method (opossum style)', async () => {
+            const mockOpossum = {
+                fire: vi.fn(async (fn) => fn()),
+                status: { state: 'closed' },
+            };
+
+            const client = { query: vi.fn().mockResolvedValue('result') };
+            const db = new Orchestrator({
+                connections: { main: client },
+                circuitBreaker: { use: mockOpossum },
+            });
+
+            const result = await db.execute('main', (c) => c.query());
+
+            expect(mockOpossum.fire).toHaveBeenCalled();
+            expect(result).toBe('result');
+        });
+
+        it('should use external circuit with .execute() method (cockatiel style)', async () => {
+            const mockCockatiel = {
+                execute: vi.fn(async (fn) => fn()),
+            };
+
+            const client = { query: vi.fn().mockResolvedValue('result') };
+            const db = new Orchestrator({
+                connections: { main: client },
+                circuitBreaker: { use: mockCockatiel },
+            });
+
+            const result = await db.execute('main', (c) => c.query());
+
+            expect(mockCockatiel.execute).toHaveBeenCalled();
+            expect(result).toBe('result');
+        });
+
+        it('should throw if external circuit has no execute/fire method', async () => {
+            const badCircuit = { unknown: () => { } };
+
+            const db = new Orchestrator({
+                connections: { main: {} },
+                circuitBreaker: { use: badCircuit },
+            });
+
+            await expect(db.execute('main', () => Promise.resolve()))
+                .rejects.toThrow('External circuit breaker must have execute() or fire() method');
+        });
+
+        it('should report external state in getStats()', () => {
+            const mockOpossum = {
+                fire: vi.fn(),
+                status: { state: 'half-open' },
+                stats: { failures: 3 },
+            };
+
+            const db = new Orchestrator({
+                connections: { main: {} },
+                circuitBreaker: { use: mockOpossum },
+            });
+
+            const stats = db.getStats();
+            expect(stats.main.circuit).toBe('half-open');
+            expect(stats.main.failures).toBe(3);
+        });
+
+        it('should handle stats object without failures property', () => {
+            const mockCircuit = {
+                execute: vi.fn(),
+                stats: {}, // stats exists but no failures property
+            };
+
+            const db = new Orchestrator({
+                connections: { main: {} },
+                circuitBreaker: { use: mockCircuit },
+            });
+
+            expect(db.getStats().main.failures).toBe(0);
+        });
+
+        it('should default to "external" state when not available', () => {
+            const simpleCircuit = { execute: vi.fn() };
+
+            const db = new Orchestrator({
+                connections: { main: {} },
+                circuitBreaker: { use: simpleCircuit },
+            });
+
+            expect(db.getStats().main.circuit).toBe('external');
+            expect(db.getStats().main.failures).toBe(0);
+        });
+
+        it('should call external open() when health check fails', async () => {
+            const mockCircuit = {
+                execute: vi.fn(async (fn) => fn()),
+                open: vi.fn(),
+            };
+
+            const db = new Orchestrator({
+                connections: { main: {} },
+                healthCheck: { interval: '10ms', checks: { main: async () => false } },
+                circuitBreaker: { use: mockCircuit },
+            });
+
+            await db.connect();
+            await new Promise(r => setTimeout(r, 30));
+
+            expect(mockCircuit.open).toHaveBeenCalled();
+
+            await db.disconnect();
+        });
+    });
 });
