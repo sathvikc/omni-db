@@ -626,6 +626,27 @@ describe('Orchestrator', () => {
             const result = await db.execute('main', c => c.query());
             expect(result).toBe('ok');
         });
+
+        it('should throw when connection is unavailable (circuit open)', async () => {
+            const db = new Orchestrator({
+                connections: { main: {} },
+                circuitBreaker: { threshold: 1 },
+            });
+
+            db.on('error', () => { }); // Suppress error event
+            db.recordFailure('main'); // Force circuit open
+
+            await expect(db.execute('main', () => Promise.resolve()))
+                .rejects.toThrow('Connection "main" is unavailable');
+        });
+
+        it('should throw error without circuit breaker configured', async () => {
+            const client = { query: vi.fn().mockRejectedValue(new Error('DB down')) };
+            const db = new Orchestrator({ connections: { main: client } });
+
+            await expect(db.execute('main', c => c.query()))
+                .rejects.toThrow('DB down');
+        });
     });
 
     describe('getStats()', () => {
