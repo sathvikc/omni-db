@@ -236,4 +236,4 @@ db.recordFailure(name: string): void;
 
 ---
 
-[← Previous: Best Practices](./best-practices.md) | [Back to README](../README.md)
+[← Previous: Failover](./failover.md) | [Next: Events →](./events.md)

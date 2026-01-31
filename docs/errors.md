@@ -163,4 +163,4 @@ return await db.execute('primary', fn);
 
 ---
 
-[← Architecture](./architecture.md) | [Back to README](../README.md)
+[← Previous: Best Practices](./best-practices.md) | [Back to README](../README.md)

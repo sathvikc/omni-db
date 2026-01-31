@@ -198,4 +198,4 @@ db.on('health:changed', (event: HealthChangedEvent) => {
 
 ---
 
-[← Previous: Failover](./failover.md) | [Next: Observability →](./observability.md)
+[← Previous: Circuit Breaker](./circuit-breaker.md) | [Next: Observability →](./observability.md)

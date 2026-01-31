@@ -164,4 +164,4 @@ process.on('SIGTERM', async () => {
 
 ---
 
-[← Previous: Examples](./examples.md) | [Next: Circuit Breaker →](./circuit-breaker.md)
+[← Previous: Examples](./examples.md) | [Next: Error Reference →](./errors.md)

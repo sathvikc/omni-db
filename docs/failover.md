@@ -174,4 +174,4 @@ db.on('failover', ({ primary }) => {
 
 ---
 
-[← Previous: Health Monitoring](./health-monitoring.md) | [Next: Events →](./events.md)
+[← Previous: Health Monitoring](./health-monitoring.md) | [Next: Circuit Breaker →](./circuit-breaker.md)

@@ -247,4 +247,4 @@ declare global {
 
 ---
 
-[← Previous: Observability](./observability.md) | [Next: Examples →](./examples.md)
+[← Previous: Observability](./observability.md) | [Next: TypeScript →](./typescript.md)
