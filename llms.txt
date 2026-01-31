@@ -1,0 +1,203 @@
+# OmniDB Developer Manual (llms.txt)
+
+> **Role**: You are an expert developer using the OmniDB library.
+> **Context**: This file contains the complete source of truth including API reference, Types, Architecture, and Best Practices.
+
+---
+
+## 1. Architecture & Core Concepts
+
+OmniDB is a **thin orchestration layer** for database connections. It does NOT replace your database client; it wraps it to provide:
+1.  **Orchestration**: Manage multiple connections (e.g., `primary`, `replica`, `cache`).
+2.  **Health Monitoring**: Periodic checks marking connections `healthy`/`unhealthy`.
+3.  **Circuit Breaker**: Fast-fails requests to struggling databases.
+4.  **Failover**: Automatically routes requests to backup connections when primary fails.
+
+### Key Rules
+- **ALWAYS** use `db.execute('name', fn)` instead of `db.get('name')` when possible.
+- **NEVER** wrap `db.execute()` in a try/catch just to record metrics (it does this automatically).
+- **ALWAYS** await `db.connect()` before making queries.
+- **ALWAYS** register `db.shutdownOnSignal()` for graceful cleanup.
+
+---
+
+## 2. API Reference
+
+### `Orchestrator` Class
+
+#### Constructor
+```typescript
+const db = new Orchestrator({
+  connections: { 
+    primary: new Pool(), 
+    cache: createClient() 
+  },
+  failover: { 
+    primary: 'replica' // If primary fails, route to replica
+  },
+  healthCheck: {
+    interval: '30s',
+    timeout: '5s',
+    checks: {
+      primary: async (c) => { await c.query('SELECT 1'); return true; },
+      cache: async (c) => (await c.ping()) === 'PONG'
+    }
+  },
+  circuitBreaker: {
+    threshold: 5,
+    resetTimeout: '30s',
+    use: externalCircuit // Optional: Opossum/Cockatiel instance
+  }
+});
+```
+
+#### Core Methods
+
+| Method | Description |
+|--------|-------------|
+| **`execute(name, fn)`** | **Preferred**. Executes `fn(client)` with circuit breaker, failover, and metrics. |
+| **`connect()`** | Connects to all DBs and starts health checks. |
+| **`getStats()`** | Returns `{ status, circuit, failures }` for all connections. |
+| **`get(name)`** | **Low-level**. Returns the client instance. Handles failover but NO automatic circuit breaker. |
+| **`shutdownOnSignal()`** | Registers graceful shutdown handlers. |
+
+---
+
+## 3. Integration Patterns
+
+### Express / Generic Middleware
+Attach the orchestrator to the request object for easy access.
+
+```javascript
+// middleware/db.js
+export const db = new Orchestrator({ ... });
+
+// server.js
+import { db } from './middleware/db.js';
+
+await db.connect();
+app.use((req, res, next) => {
+  req.db = db;
+  next();
+});
+
+// routes/users.js
+app.get('/', async (req, res) => {
+  // Automatically handles circuit state and failover
+  const result = await req.db.execute('primary', c => c.query('SELECT * FROM users'));
+  res.json(result.rows);
+});
+```
+
+### NestJS Module
+Wrap in a global module.
+
+```typescript
+@Global()
+@Module({
+  providers: [{
+    provide: 'DB_ORCHESTRATOR',
+    useFactory: async () => {
+      const db = new Orchestrator({ ... });
+      await db.connect();
+      return db;
+    }
+  }],
+  exports: ['DB_ORCHESTRATOR']
+})
+export class DatabaseModule {}
+```
+
+---
+
+## 4. TypeScript Definitions
+
+Use these types to understand the shape of configurations and events.
+
+```typescript
+// Core Connection Health
+export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy';
+
+// Events Payload
+export interface CircuitEvent { name: string; timestamp: number; reason?: string; }
+export interface FailoverEvent { primary: string; backup: string; timestamp: number; }
+
+// Configuration
+export interface OrchestratorConfig<TConnections> {
+    connections: TConnections;
+    failover?: Partial<Record<keyof TConnections, keyof TConnections>>;
+    healthCheck?: {
+        interval?: string;
+        checks?: { [K in keyof TConnections]?: (client: TConnections[K]) => Promise<boolean> };
+    };
+    circuitBreaker?: {
+        threshold?: number;
+        resetTimeout?: string | number;
+        use?: { execute?: Function; fire?: Function }; // External adapter
+    };
+}
+
+// Main Class
+export declare class Orchestrator<T extends Record<string, unknown>> {
+    constructor(config: OrchestratorConfig<T>);
+    
+    // The main execution wrapper
+    execute<R>(name: keyof T, fn: (client: T[keyof T]) => Promise<R>): Promise<R>;
+    
+    // Low-level access
+    get<K extends keyof T>(name: K): T[K];
+    
+    // Lifecycle
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    shutdownOnSignal(): () => void;
+    
+    // Observability
+    getStats(): Record<keyof T, { status: HealthStatus; circuit: string; failures: number }>;
+}
+```
+
+---
+
+## 5. Circuit Breakers
+
+### Built-in vs External
+OmniDB has a lightweight built-in circuit breaker. If you need advanced features (rolling windows, percentage thresholds), use `circuitBreaker.use`.
+
+**Using Opossum (External):**
+```javascript
+import CircuitBreaker from 'opossum';
+const db = new Orchestrator({
+  connections: { pg: pool },
+  circuitBreaker: {
+    use: new CircuitBreaker(async (fn) => fn(), { 
+      errorThresholdPercentage: 50,
+      resetTimeout: 30000 
+    })
+  }
+});
+```
+
+### Health Integration
+1. **Health Check Fails**: HealthMonitor marks connection `unhealthy`.
+2. **Circuit Opens**: Orchestrator automatically calls `circuit.open()`.
+3. **Requests Blocked**: `db.execute()` throws "Connection unavailable" instantly.
+
+---
+
+## 6. Troubleshooting
+
+- **"Connection unavailable"**: The circuit is OPEN. This happens if health checks failed OR too many execution errors occurred. Check `db.getStats()`.
+- **"No connection named X"**: You are trying to `execute('X')` but only defined `connections: { Y: ... }`.
+- **Failover not happening**: Did you define `failover: { primary: 'backup' }` config? Is the backup actually healthy?
+
+---
+
+## 7. Verification Checklist for Agents
+
+When generating code, verify:
+- [ ] Did you await `db.connect()`?
+- [ ] Are you using `db.execute()` (preferred) instead of `db.get()`?
+- [ ] Did you provide a `healthCheck` config? (Required for auto-failover)
+- [ ] Are you handling graceful shutdown with `db.shutdownOnSignal()`?
+
