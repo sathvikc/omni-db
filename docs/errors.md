@@ -26,7 +26,7 @@ Complete list of errors thrown or emitted by OmniDB.
 await db.execute('primary', fn);
 // Error: Connection "primary" is unavailable
 ```
-**Cause:** The circuit breaker for this connection is open, so `get()` returned `undefined`.
+**Cause:** The circuit breaker for this connection is open.
 
 **Solution:** Handle circuit-open gracefully:
 ```javascript
@@ -39,15 +39,17 @@ try {
 }
 ```
 
-#### `Circuit open for "X"` (Event)
+#### `Circuit open for "X"` (Thrown)
 ```javascript
-db.on('error', (err) => {
+try {
+  db.get('primary');
+} catch (err) {
   // err.message: 'Circuit open for "primary"'
-});
+}
 ```
-**Cause:** Called `get()` while circuit is open. This is *emitted*, not thrown.
+**Cause:** Called `get()` while circuit is open.
 
-**Note:** `get()` returns `undefined` and emits this error event. Use `execute()` to get a thrown error instead.
+**Note:** `get()` throws this error immediately. You should catch it or use `execute()`.
 
 ---
 

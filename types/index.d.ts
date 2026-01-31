@@ -501,7 +501,7 @@ export declare class Orchestrator<
      * ```
      */
     get<K extends keyof TConnections>(name: K): TConnections[K];
-    get(name: string): unknown | undefined;
+    get(name: string): unknown;
 
     /**
      * Get all registered connection names.
