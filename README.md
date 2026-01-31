@@ -189,6 +189,9 @@ Creates a new orchestrator instance.
 | `healthCheck.retry.retries` | `number` | Failed attempts before marking unhealthy |
 | `healthCheck.retry.delay` | `string` | Waiting time between retries |
 | `healthCheck.checks` | `Record<string, Function>` | Custom health check functions |
+| `circuitBreaker.threshold` | `number` | Failures before opening circuit (default: 5) |
+| `circuitBreaker.resetTimeout` | `string` | Time before half-open (default: `'30s'`) |
+| `circuitBreaker.use` | `object` | External circuit breaker (opossum, cockatiel) |
 
 ### Methods
 
@@ -197,9 +200,13 @@ Creates a new orchestrator instance.
 | `connect()` | `Promise<void>` | Connect and start health monitoring |
 | `disconnect()` | `Promise<void>` | Disconnect and stop monitoring |
 | `get(name)` | `T` | Get client (with failover routing) |
+| `execute(name, fn)` | `Promise<T>` | Execute with automatic circuit breaker |
+| `getStats()` | `Record<string, object>` | Get health + circuit breaker stats |
 | `list()` | `string[]` | Get all connection names |
 | `has(name)` | `boolean` | Check if connection exists |
 | `health()` | `Record<string, ConnectionHealth>` | Get health status |
+| `recordSuccess(name)` | `void` | Record success for circuit breaker |
+| `recordFailure(name)` | `void` | Record failure for circuit breaker |
 | `shutdownOnSignal(opts?)` | `() => void` | Register graceful shutdown handlers |
 | `isConnected` | `boolean` | Connection state |
 | `size` | `number` | Number of connections |
@@ -207,8 +214,8 @@ Creates a new orchestrator instance.
 ### Events
 
 ```javascript
-db.on('connected', (name) => console.log(`${name} connected`));
-db.on('disconnected', (name) => console.log(`${name} disconnected`));
+db.on('connected', ({ name }) => console.log(`${name} connected`));
+db.on('disconnected', ({ name }) => console.log(`${name} disconnected`));
 db.on('health:changed', ({ name, previous, current }) => {
   console.log(`${name}: ${previous} → ${current}`);
 });
