@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-01-31
+
+### Added
+- **Health Logic**: 
+  - Support for `degraded` health status (does not trigger failover).
+  - Health checks can now return `'degraded', 'healthy', 'unhealthy'` strings.
+
+### Changed
+- **Breaking**: `Orchestrator.get(name)` now throws `Error` if the circuit is open (previously returned `undefined`).
+  - *Note*: If failover is active and healthy, `get()` returns the backup connection without throwing.
+- **Failover Logic**: Degraded connections are now treated as "usable" and do not trigger failover.
+
 ## [0.4.0] - 2026-01-31
 
 ### Added
