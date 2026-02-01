@@ -52,7 +52,8 @@ healthCheck: {
 
 | Return/Behavior | Status |
 |-----------------|--------|
-| Returns `true` | healthy |
+| Returns `true` or `'healthy'` | healthy |
+| Returns `'degraded'` | degraded |
 | Returns `false` | unhealthy |
 | Throws error | unhealthy |
 | Times out | unhealthy |
