@@ -4,18 +4,20 @@ To build production-grade applications with OmniDB, follow these recommended pat
 
 ## 1. Use `db.execute()` (Avoid Manual Tracking)
 
-### ❌ Anti-Pattern: Manual `get()` + `record`
-Manually getting a connection, checking for failures, and recording success/failure is error-prone and verbose.
+### 1. Handle Circuit Breaker Errors
+
+When the circuit is open, `get()` throws an error. Always handle this or use `execute()` for automatic safety.
 
 ```javascript
-// Don't do this
-const pg = db.get('primary'); // what if it's null?
+// Good - Safe execution
+await db.execute('primary', client => client.query(...));
+
+// Good - Explicit handling
 try {
+  const pg = db.get('primary');
   await pg.query(...);
-  db.recordSuccess('primary'); // easy to forget!
-} catch (e) {
-  db.recordFailure('primary');
-  throw e;
+} catch (err) {
+  // Handle circuit open / failover
 }
 ```
 

@@ -133,7 +133,7 @@ Different components throw different errors:
 | Source | Error Message | When |
 |--------|--------------|------|
 | `Orchestrator.execute()` | `Connection "X" is unavailable` | Circuit open, get() returned undefined |
-| `Orchestrator.get()` | Emits error event (no throw) | Circuit open |
+| `Orchestrator.get()` | Throws `Error` (and emits event) | Circuit open |
 | `CircuitBreaker.execute()` | `Circuit breaker is OPEN` | Direct circuit usage when open |
 | User function | (original error) | Query/operation failed |
 
