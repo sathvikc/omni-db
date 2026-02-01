@@ -60,8 +60,10 @@ async function main(): Promise<void> {
     console.log('  db.isConnected:', db.isConnected); // true
 
     // 4. Use Connections (Type-safe!)
-    const primary: MockClient = db.get('primary');
-    await primary.query('SELECT * FROM users');
+    // Using execute() protects against open circuits handling errors automatically
+    await db.execute('primary', async (primary) => {
+        await primary.query('SELECT * FROM users');
+    });
 
     // 5. Check Health
     const health = db.health();

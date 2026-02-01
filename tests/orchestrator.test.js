@@ -319,6 +319,44 @@ describe('Orchestrator', () => {
             const client = db.get('primary');
             expect(client).toBe(primary);
         });
+
+        it('should failover to backup even if primary circuit is OPEN (Regression Test)', async () => {
+            const db = new Orchestrator({
+                connections: { primary: {}, backup: {} },
+                failover: { primary: 'backup' },
+                circuitBreaker: { threshold: 1 }, // Easy to trip
+                healthCheck: {
+                    checks: {
+                        primary: async () => false, // Will result in 'unhealthy'
+                        backup: async () => true,
+                    },
+                    interval: '10ms'
+                }
+            });
+
+            await db.connect();
+
+            // 1. Wait for health check to run
+            // This will:
+            // a) Mark primary 'unhealthy'
+            // b) Trip primary circuit (sync logic)
+            await new Promise(r => setTimeout(r, 50));
+
+            // Verify setup conditions
+            const stats = db.getStats();
+            expect(stats.primary.status).toBe('unhealthy');
+            expect(stats.primary.circuit).toBe('open');
+
+            // 2. Attempt to get connection
+            // BEFORE FIX: Threw "Circuit open for 'primary'"
+            // AFTER FIX: Returns backup connection
+            const client = db.get('primary');
+            const backup = db.get('backup'); // Direct access to compare
+
+            expect(client).toBe(backup);
+
+            await db.disconnect();
+        });
     });
 
     describe('disconnect() cleanup', () => {
