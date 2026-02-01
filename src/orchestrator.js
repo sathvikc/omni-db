@@ -211,15 +211,15 @@ export class Orchestrator extends EventEmitter {
      * @fires Orchestrator#circuit:open - If circuit opens due to failures
      */
     get(name) {
-        // Check circuit breaker if enabled
-        const circuit = this.#circuits.get(name);
-        if (circuit && !circuit.canExecute()) {
-            throw new Error(`Circuit open for "${name}"`);
-        }
-
         const resolved = this.#failoverRouter.resolve(name, (n) =>
             this.#healthMonitor.getStatus(n)
         );
+
+        // Check circuit breaker of the RESOLVED connection
+        const circuit = this.#circuits.get(resolved.name);
+        if (circuit && !circuit.canExecute()) {
+            throw new Error(`Circuit open for "${resolved.name}"`);
+        }
 
         if (resolved.isFailover) {
             // Check if this is a new failover
