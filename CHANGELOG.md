@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-02-05
+
+### Fixed
+- **CRITICAL**: Fixed unhandled promise rejection in health checks that could crash Node.js process
+- **HIGH**: Fixed memory leak from accumulating signal handlers when `shutdownOnSignal()` called multiple times
+- **HIGH**: Fixed EventEmitter max listeners warning when attaching many monitoring listeners
+- **MEDIUM**: Added circular failover detection to prevent infinite loops in misconfigured setups
+- **MEDIUM**: Validate external circuit breakers at construction time instead of first execution
+- Input validation for `CircuitBreaker` config (threshold, resetTimeout, halfOpenSuccesses)
+- Input validation for `parseDuration` (reject zero and extremely large durations)
+
+### Changed
+- Health checks now run in parallel for better performance (5x faster for multiple connections)
+- Circuit breakers now automatically close when health recovers
+- `HealthMonitor.check()` now returns `{status, error}` object instead of just status
+- Signal handlers are now cleaned up automatically on `disconnect()`
+
+### Added
+- Error events now emitted when health check functions throw (for observability)
+- `circuit:close` event with `reason: 'health-recovered'` when health check passes after failure
+
 ## [0.5.0] - 2026-01-31
 
 ### Added
@@ -126,7 +147,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 7 detailed guides in `docs/` folder
   - MIT License
 
-[Unreleased]: https://github.com/sathvikc/omni-db/compare/v0.4.0...HEAD 
+[Unreleased]: https://github.com/sathvikc/omni-db/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/sathvikc/omni-db/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/sathvikc/omni-db/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/sathvikc/omni-db/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/sathvikc/omni-db/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/sathvikc/omni-db/compare/v0.1.0...v0.2.0
