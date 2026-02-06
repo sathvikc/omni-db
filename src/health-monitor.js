@@ -20,6 +20,8 @@
  * @property {RetryConfig} [retry] - Retry configuration
  */
 
+const DURATION_REGEX = /^(\d+)(ms|s|m|h)$/;
+
 /**
  * Parse duration string to milliseconds.
  * @param {string} duration - Duration string (e.g., '30s', '5m', '1h')
@@ -31,7 +33,7 @@ export function parseDuration(duration) {
         throw new Error('Duration must be a string');
     }
 
-    const match = duration.match(/^(\d+)(ms|s|m|h)$/);
+    const match = duration.match(DURATION_REGEX);
     if (!match) {
         throw new Error(`Invalid duration format: ${duration}. Use format like '30s', '5m', '1h'`);
     }
