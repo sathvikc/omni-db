@@ -195,9 +195,16 @@ describe('HealthMonitor', () => {
             expect(result.error.message).toBe('Connection failed');
         });
 
-        it('should return unhealthy when check times out', async () => {
-            const fastMonitor = new HealthMonitor({ timeout: '50ms' });
-            fastMonitor.register('db1', async () => {
+        it('should handle timeout properly', async () => {
+            const fastMonitor = new HealthMonitor({ timeout: '10ms' });
+            let abortSignalReceived = false;
+
+            fastMonitor.register('db1', async (client, { signal } = {}) => {
+                if (signal) {
+                    signal.addEventListener('abort', () => {
+                        abortSignalReceived = true;
+                    });
+                }
                 await new Promise((resolve) => setTimeout(resolve, 200));
                 return true;
             });
@@ -205,6 +212,13 @@ describe('HealthMonitor', () => {
             const result = await fastMonitor.check('db1', {});
 
             expect(result.status).toBe('unhealthy');
+            expect(result.error.message).toBe('Health check timeout');
+
+            // Wait a bit for the abort to fire
+            await new Promise(r => setTimeout(r, 20));
+
+            // This verifies that AbortController was used and signal passed
+            expect(abortSignalReceived).toBe(true);
         });
 
         it('should pass client to check function', async () => {

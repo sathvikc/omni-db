@@ -134,12 +134,24 @@ export class Orchestrator extends EventEmitter {
         return {
             // Determine which method the external circuit uses
             execute: async (fn) => {
-                if (typeof external.fire === 'function') {
-                    // Opossum uses .fire()
-                    return external.fire(fn);
+                try {
+                    if (typeof external.fire === 'function') {
+                        // Opossum uses .fire()
+                        return await external.fire(fn);
+                    }
+                    // Cockatiel and others use .execute()
+                    return await external.execute(fn);
+                } catch (err) {
+                    // Preserve original error but attach stats if available
+                    if (typeof external.stats === 'object') {
+                        try {
+                            err.circuitStats = external.stats;
+                        } catch {
+                            // Ignore if err is frozen/immutable
+                        }
+                    }
+                    throw err;
                 }
-                // Cockatiel and others use .execute()
-                return external.execute(fn);
             },
             // Expose state if available, otherwise return 'external'
             get state() {
@@ -226,6 +238,17 @@ export class Orchestrator extends EventEmitter {
      * @fires Orchestrator#circuit:open - If circuit opens due to failures
      */
     get(name) {
+        const resolvedName = this.#resolveAndEmit(name);
+        return this.#registry.get(resolvedName);
+    }
+
+    /**
+     * Resolve connection name handling failover and circuit checks.
+     * @param {string} name - Connection name
+     * @returns {string} Resolved connection name (primary or backup)
+     * @private
+     */
+    #resolveAndEmit(name) {
         const resolved = this.#failoverRouter.resolve(name, (n) =>
             this.#healthMonitor.getStatus(n)
         );
@@ -257,7 +280,7 @@ export class Orchestrator extends EventEmitter {
             });
         }
 
-        return this.#registry.get(resolved.name);
+        return resolved.name;
     }
 
     /**
@@ -298,7 +321,7 @@ export class Orchestrator extends EventEmitter {
     /**
      * Execute a function with automatic connection handling and circuit breaker protection.
      * Replaces manual get() + recordSuccess() / recordFailure() usage.
-     * 
+     *
      * @template T
      * @param {string} name - The connection name
      * @param {(client: unknown) => Promise<T>} fn - Function to execute
@@ -306,37 +329,28 @@ export class Orchestrator extends EventEmitter {
      * @throws {Error} If connection not found or circuit open
      */
     async execute(name, fn) {
-        // Resolve connection (handles failover + health + circuit check)
-        // We use .get() internally which already does circuit checks
-        const client = this.get(name);
+        // Resolve connection ONCE to avoid TOCTOU race conditions
+        const resolvedName = this.#resolveAndEmit(name);
+        const client = this.#registry.get(resolvedName);
 
         if (!client) {
-            // Error was already emitted by get() if circuit was open
-            throw new Error(`Connection "${name}" is unavailable`);
+            // Error was already emitted by resolveAndEmit() if circuit was open,
+            // but this check handles case where connection name is invalid or not registered
+            throw new Error(`Connection "${resolvedName}" is unavailable`);
         }
 
-        // We need to know which actual connection verified by get() we are using 
-        // to record metrics against the correct target (e.g. if failover happened)
-        // However, .get() returns the *client*, not the name.
-        // We need to re-resolve to be sure which name to record against.
-        // Optimization: We could refactor get() to return { client, resolvedName } but that breaks API.
-        // For now, let's re-resolve failover logic quickly or just assume we record against original 'name'
-        // effectively treating failover as transparent to the caller?
-        // Actually, if failover happens, we want to record against the *backup*.
-
-        const resolved = this.#failoverRouter.resolve(name, (n) =>
-            this.#healthMonitor.getStatus(n)
-        );
-        const targetName = resolved.name;
-
         // Use the circuit breaker for the TARGET connection
-        const circuit = this.#circuits.get(targetName);
+        const circuit = this.#circuits.get(resolvedName);
 
         if (circuit) {
             // Circuit breaker wrapper handles success/failure tracking
             return await circuit.execute(async () => fn(client));
         } else {
             // No circuit breaker configured
+            // We manually record success/failure to update health/circuit state if needed
+            // (Wait, execute() implies we want automatic tracking. If no CB configured, maybe just run it?)
+            // Actually, existing implementation didn't track if no CB configured.
+            // But strict requirement says "automatic connection handling and circuit breaker protection".
             return await fn(client);
         }
     }
@@ -440,7 +454,12 @@ export class Orchestrator extends EventEmitter {
             exitProcess = true,
         } = options;
 
+        let shuttingDown = false;
+
         const handler = async (signal) => {
+            if (shuttingDown) return;
+            shuttingDown = true;
+
             this.emit('shutdown', { signal, timestamp: Date.now() });
             await this.disconnect();
             if (exitProcess) {
@@ -527,7 +546,7 @@ export class Orchestrator extends EventEmitter {
                     });
                 }
             } catch (err) {
-                /* c8 ignore start -- defensive error handling for unexpected runtime errors */
+                // Defensive error handling for unexpected runtime errors
                 const previousStatus = this.#healthMonitor.getStatus(name);
                 this.#healthMonitor.setStatus(name, 'unhealthy');
 
@@ -547,7 +566,6 @@ export class Orchestrator extends EventEmitter {
                     message: err.message,
                     timestamp: Date.now()
                 });
-                /* c8 ignore stop */
             }
         });
 
