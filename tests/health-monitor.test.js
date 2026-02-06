@@ -32,6 +32,16 @@ describe('parseDuration', () => {
         expect(() => parseDuration('30x')).toThrow('Invalid duration format');
         expect(() => parseDuration('')).toThrow('Invalid duration format');
     });
+
+    it('should reject zero duration', () => {
+        expect(() => parseDuration('0s')).toThrow(/positive|zero|must be/i);
+        expect(() => parseDuration('0ms')).toThrow(/positive|zero|must be/i);
+    });
+
+    it('should reject extremely large durations (> 24h)', () => {
+        expect(() => parseDuration('25h')).toThrow(/large|maximum|exceed/i);
+        expect(() => parseDuration('100h')).toThrow(/large|maximum|exceed/i);
+    });
 });
 
 describe('HealthMonitor', () => {
@@ -146,41 +156,43 @@ describe('HealthMonitor', () => {
         it('should return healthy when no check function registered', async () => {
             monitor.register('db1');
 
-            const status = await monitor.check('db1', {});
+            const result = await monitor.check('db1', {});
 
-            expect(status).toBe('healthy');
+            expect(result.status).toBe('healthy');
         });
 
         it('should return healthy when check passes', async () => {
             monitor.register('db1', async () => true);
 
-            const status = await monitor.check('db1', {});
+            const result = await monitor.check('db1', {});
 
-            expect(status).toBe('healthy');
+            expect(result.status).toBe('healthy');
         });
 
         it('should return unhealthy when check returns false', async () => {
             monitor.register('db1', async () => false);
 
-            const status = await monitor.check('db1', {});
+            const result = await monitor.check('db1', {});
 
-            expect(status).toBe('unhealthy');
+            expect(result.status).toBe('unhealthy');
         });
 
         it('should return degraded when check returns "degraded"', async () => {
             monitor.register('db1', async () => 'degraded');
-            const status = await monitor.check('db1', {});
-            expect(status).toBe('degraded');
+            const result = await monitor.check('db1', {});
+            expect(result.status).toBe('degraded');
         });
 
-        it('should return unhealthy when check throws', async () => {
+        it('should return unhealthy with error when check throws', async () => {
             monitor.register('db1', async () => {
                 throw new Error('Connection failed');
             });
 
-            const status = await monitor.check('db1', {});
+            const result = await monitor.check('db1', {});
 
-            expect(status).toBe('unhealthy');
+            expect(result.status).toBe('unhealthy');
+            expect(result.error).toBeInstanceOf(Error);
+            expect(result.error.message).toBe('Connection failed');
         });
 
         it('should return unhealthy when check times out', async () => {
@@ -190,9 +202,9 @@ describe('HealthMonitor', () => {
                 return true;
             });
 
-            const status = await fastMonitor.check('db1', {});
+            const result = await fastMonitor.check('db1', {});
 
-            expect(status).toBe('unhealthy');
+            expect(result.status).toBe('unhealthy');
         });
 
         it('should pass client to check function', async () => {
@@ -238,8 +250,8 @@ describe('HealthMonitor', () => {
                 await vi.advanceTimersByTimeAsync(100); // Attempt 1 -> 2
                 await vi.advanceTimersByTimeAsync(100); // Attempt 2 -> 3
 
-                const status = await checkPromise;
-                expect(status).toBe('healthy');
+                const result = await checkPromise;
+                expect(result.status).toBe('healthy');
                 expect(attempts).toBe(3);
             });
 
@@ -258,8 +270,8 @@ describe('HealthMonitor', () => {
 
                 await vi.advanceTimersByTimeAsync(200);
 
-                const status = await checkPromise;
-                expect(status).toBe('unhealthy');
+                const result = await checkPromise;
+                expect(result.status).toBe('unhealthy');
                 expect(attempts).toBe(2); // Initial + 1 retry
             });
 
@@ -298,8 +310,8 @@ describe('HealthMonitor', () => {
                     return false;
                 });
 
-                const status = await retryMonitor.check('db1', {});
-                expect(status).toBe('unhealthy');
+                const result = await retryMonitor.check('db1', {});
+                expect(result.status).toBe('unhealthy');
                 expect(attempts).toBe(1); // 0 retries = 1 attempt
             });
         });

@@ -806,16 +806,15 @@ describe('Orchestrator', () => {
             expect(result).toBe('result');
         });
 
-        it('should throw if external circuit has no execute/fire method', async () => {
+        it('should throw at construction if external circuit has no execute/fire method', () => {
             const badCircuit = { unknown: () => { } };
 
-            const db = new Orchestrator({
-                connections: { main: {} },
-                circuitBreaker: { use: badCircuit },
-            });
-
-            await expect(db.execute('main', () => Promise.resolve()))
-                .rejects.toThrow('External circuit breaker must have execute() or fire() method');
+            expect(() => {
+                new Orchestrator({
+                    connections: { main: {} },
+                    circuitBreaker: { use: badCircuit },
+                });
+            }).toThrow('External circuit breaker must have execute() or fire() method');
         });
 
         it('should report external state in getStats()', () => {
@@ -879,6 +878,219 @@ describe('Orchestrator', () => {
             expect(mockCircuit.open).toHaveBeenCalled();
 
             await db.disconnect();
+        });
+
+        it('should validate external circuit at construction time', () => {
+            const invalidCircuit = { someMethod: () => {} };
+
+            expect(() => {
+                new Orchestrator({
+                    connections: { main: {} },
+                    circuitBreaker: { use: invalidCircuit }
+                });
+            }).toThrow(/execute.*fire/i);
+        });
+    });
+
+    describe('health check error handling', () => {
+        it('should emit error event when health check throws', async () => {
+            const db = new Orchestrator({
+                connections: { primary: {} },
+                healthCheck: {
+                    interval: '20ms',
+                    checks: {
+                        primary: async () => {
+                            throw new Error('Network timeout');
+                        }
+                    }
+                }
+            });
+
+            const errors = [];
+            db.on('error', (evt) => errors.push(evt));
+
+            await db.connect();
+            await new Promise(r => setTimeout(r, 80));
+
+            expect(errors.length).toBeGreaterThan(0);
+            expect(errors[0]).toHaveProperty('name', 'primary');
+            expect(errors[0]).toHaveProperty('context', 'health-check');
+            expect(errors[0]).toHaveProperty('error');
+
+            await db.disconnect();
+        });
+
+        it('should mark connection unhealthy when health check throws', async () => {
+            const db = new Orchestrator({
+                connections: { primary: {} },
+                healthCheck: {
+                    interval: '30ms',
+                    checks: {
+                        primary: async () => {
+                            throw new Error('Connection refused');
+                        }
+                    }
+                }
+            });
+
+            db.on('error', () => {}); // Suppress error logging
+
+            await db.connect();
+            await new Promise(r => setTimeout(r, 50));
+
+            expect(db.health().primary.status).toBe('unhealthy');
+
+            await db.disconnect();
+        });
+
+        it('should continue running after health check errors', async () => {
+            let callCount = 0;
+            const db = new Orchestrator({
+                connections: { main: {} },
+                healthCheck: {
+                    interval: '20ms',
+                    checks: {
+                        main: async () => {
+                            callCount++;
+                            if (callCount === 1) throw new Error('First fails');
+                            return true;
+                        }
+                    }
+                }
+            });
+
+            db.on('error', () => {});
+
+            await db.connect();
+            await new Promise(r => setTimeout(r, 80));
+
+            // Should have run multiple times, not stopped after error
+            expect(callCount).toBeGreaterThan(1);
+
+            await db.disconnect();
+        });
+
+        it('should run health checks in parallel', async () => {
+            const startTimes = [];
+            const endTimes = [];
+
+            const db = new Orchestrator({
+                connections: { db1: {}, db2: {}, db3: {} },
+                healthCheck: {
+                    interval: '500ms',
+                    checks: {
+                        db1: async () => { startTimes.push({ name: 'db1', time: Date.now() }); await new Promise(r => setTimeout(r, 30)); endTimes.push({ name: 'db1', time: Date.now() }); return true; },
+                        db2: async () => { startTimes.push({ name: 'db2', time: Date.now() }); await new Promise(r => setTimeout(r, 30)); endTimes.push({ name: 'db2', time: Date.now() }); return true; },
+                        db3: async () => { startTimes.push({ name: 'db3', time: Date.now() }); await new Promise(r => setTimeout(r, 30)); endTimes.push({ name: 'db3', time: Date.now() }); return true; }
+                    }
+                }
+            });
+
+            await db.connect();
+            await new Promise(r => setTimeout(r, 600));
+
+            // In parallel: all starts should happen before any ends
+            // In sequential: starts and ends would interleave
+            if (startTimes.length >= 3 && endTimes.length >= 3) {
+                const lastStart = Math.max(...startTimes.map(s => s.time));
+                const firstEnd = Math.min(...endTimes.map(e => e.time));
+                // All starts should complete before first end in parallel
+                expect(lastStart).toBeLessThanOrEqual(firstEnd);
+            }
+
+            await db.disconnect();
+        });
+
+        it('should close circuit when health recovers', async () => {
+            let healthy = false;
+            const db = new Orchestrator({
+                connections: { main: {} },
+                healthCheck: {
+                    interval: '20ms',
+                    checks: { main: async () => healthy }
+                },
+                circuitBreaker: { threshold: 5 }
+            });
+
+            const closeHandler = vi.fn();
+            db.on('circuit:close', closeHandler);
+
+            await db.connect();
+
+            // Wait for unhealthy check
+            await new Promise(r => setTimeout(r, 40));
+            expect(db.getStats().main.status).toBe('unhealthy');
+            expect(db.getStats().main.circuit).toBe('open');
+
+            // Now recover
+            healthy = true;
+            await new Promise(r => setTimeout(r, 40));
+
+            expect(db.getStats().main.status).toBe('healthy');
+            expect(db.getStats().main.circuit).toBe('closed');
+            expect(closeHandler).toHaveBeenCalledWith(expect.objectContaining({
+                name: 'main',
+                reason: 'health-recovered'
+            }));
+
+            await db.disconnect();
+        });
+    });
+
+    describe('signal handler cleanup', () => {
+        it('should not accumulate handlers on repeated shutdownOnSignal calls', () => {
+            const initialCount = process.listenerCount('SIGTERM');
+
+            const db = new Orchestrator({ connections: { main: {} } });
+
+            db.shutdownOnSignal();
+            db.shutdownOnSignal();
+            db.shutdownOnSignal();
+
+            const finalCount = process.listenerCount('SIGTERM');
+
+            // Should have at most 1 new handler, not 3
+            expect(finalCount - initialCount).toBeLessThanOrEqual(1);
+
+            // Cleanup
+            process.removeAllListeners('SIGTERM');
+        });
+
+        it('should cleanup signal handlers on disconnect', async () => {
+            const initialCount = process.listenerCount('SIGTERM');
+
+            const db = new Orchestrator({ connections: { main: {} } });
+            await db.connect();
+            db.shutdownOnSignal({ signals: ['SIGTERM'] });
+
+            expect(process.listenerCount('SIGTERM')).toBeGreaterThan(initialCount);
+
+            await db.disconnect();
+
+            // After disconnect, should be back to initial
+            expect(process.listenerCount('SIGTERM')).toBe(initialCount);
+        });
+    });
+
+    describe('EventEmitter limits', () => {
+        it('should not warn with many event listeners', () => {
+            const originalWarn = console.warn;
+            const warnings = [];
+            console.warn = (...args) => warnings.push(args.join(' '));
+
+            const db = new Orchestrator({ connections: { main: {} } });
+
+            // Attach 20+ listeners (default Node.js limit is 10)
+            for (let i = 0; i < 25; i++) {
+                db.on('health:changed', () => {});
+            }
+
+            console.warn = originalWarn;
+
+            const maxListenerWarnings = warnings.filter(w =>
+                w.includes('MaxListenersExceeded') || w.includes('memory leak')
+            );
+            expect(maxListenerWarnings).toHaveLength(0);
         });
     });
 });
