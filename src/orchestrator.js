@@ -60,6 +60,9 @@ export class Orchestrator extends EventEmitter {
     /** @type {boolean} */
     #connected = false;
 
+    /** @type {(() => void) | null} */
+    #signalCleanup = null;
+
     /**
      * Create a new Orchestrator instance.
      * @param {OrchestratorConfig} config - Configuration object
@@ -68,6 +71,9 @@ export class Orchestrator extends EventEmitter {
      */
     constructor(config) {
         super();
+
+        // Set reasonable max listeners to prevent warnings
+        this.setMaxListeners(50);
 
         if (!config || typeof config !== 'object') {
             throw new Error('Config must be an object');
@@ -101,9 +107,15 @@ export class Orchestrator extends EventEmitter {
 
                 // Support external circuit breakers (opossum, cockatiel, etc.)
                 if (cbConfig.use && typeof cbConfig.use === 'object') {
-                    // User provided their own circuit breaker instance
-                    // Wrap it to normalize the interface
-                    this.#circuits.set(name, this.#wrapExternalCircuit(cbConfig.use));
+                    // Validate external circuit breaker at construction time
+                    const ext = cbConfig.use;
+                    if (typeof ext.fire !== 'function' && typeof ext.execute !== 'function') {
+                        throw new Error(
+                            'External circuit breaker must have execute() or fire() method. ' +
+                            'Supported libraries: opossum (.fire), cockatiel (.execute)'
+                        );
+                    }
+                    this.#circuits.set(name, this.#wrapExternalCircuit(ext));
                 } else {
                     // Use built-in circuit breaker
                     this.#circuits.set(name, new CircuitBreaker(cbConfig));
@@ -115,7 +127,7 @@ export class Orchestrator extends EventEmitter {
     /**
      * Wrap an external circuit breaker to normalize the interface.
      * Supports opossum (.fire), cockatiel (.execute), and others.
-     * @param {object} external - External circuit breaker instance
+     * @param {object} external - External circuit breaker instance (pre-validated)
      * @returns {object} - Normalized circuit breaker interface
      */
     #wrapExternalCircuit(external) {
@@ -125,12 +137,9 @@ export class Orchestrator extends EventEmitter {
                 if (typeof external.fire === 'function') {
                     // Opossum uses .fire()
                     return external.fire(fn);
-                } else if (typeof external.execute === 'function') {
-                    // Cockatiel and others use .execute()
-                    return external.execute(fn);
-                } else {
-                    throw new Error('External circuit breaker must have execute() or fire() method');
                 }
+                // Cockatiel and others use .execute()
+                return external.execute(fn);
             },
             // Expose state if available, otherwise return 'external'
             get state() {
@@ -193,6 +202,12 @@ export class Orchestrator extends EventEmitter {
 
         // Stop health monitoring
         this.#healthMonitor.stop();
+
+        // Clean up signal handlers
+        if (this.#signalCleanup) {
+            this.#signalCleanup();
+            this.#signalCleanup = null;
+        }
 
         for (const name of this.#registry.list()) {
             this.emit('disconnected', { name, timestamp: Date.now() });
@@ -413,6 +428,12 @@ export class Orchestrator extends EventEmitter {
      * @returns {() => void} Cleanup function to remove signal handlers
      */
     shutdownOnSignal(options = {}) {
+        // Clean up existing handlers if already registered
+        if (this.#signalCleanup) {
+            this.#signalCleanup();
+            this.#signalCleanup = null;
+        }
+
         const {
             signals = ['SIGTERM', 'SIGINT'],
             exitCode = 0,
@@ -432,47 +453,105 @@ export class Orchestrator extends EventEmitter {
             process.on(signal, handler);
         }
 
-        // Return cleanup function
-        return () => {
+        // Create cleanup function
+        const cleanup = () => {
             for (const signal of signals) {
                 process.off(signal, handler);
             }
         };
+
+        // Store cleanup for automatic cleanup on re-registration or disconnect
+        this.#signalCleanup = cleanup;
+
+        return cleanup;
     }
 
     /**
      * Run health checks for all connections.
+     * Runs checks in parallel for better performance.
      * @private
      */
     async #runHealthChecks() {
-        for (const name of this.#registry.list()) {
-            const client = this.#registry.get(name);
-            const previousStatus = this.#healthMonitor.getStatus(name);
-            const newStatus = await this.#healthMonitor.check(name, client);
+        const checks = this.#registry.list().map(async (name) => {
+            try {
+                const client = this.#registry.get(name);
+                const previousStatus = this.#healthMonitor.getStatus(name);
+                const result = await this.#healthMonitor.check(name, client);
+                const newStatus = result.status;
 
-            if (newStatus !== previousStatus) {
-                this.#healthMonitor.setStatus(name, newStatus);
+                if (newStatus !== previousStatus) {
+                    this.#healthMonitor.setStatus(name, newStatus);
 
-                // SYNC: If health check fails, trip the circuit breaker immediately
-                if (newStatus === 'unhealthy') {
-                    const circuit = this.#circuits.get(name);
-                    if (circuit && circuit.state !== 'open') {
-                        circuit.open();
-                        this.emit('circuit:open', {
-                            name,
-                            reason: 'health-check-failed',
-                            timestamp: Date.now()
-                        });
+                    // SYNC: If health check fails, trip the circuit breaker immediately
+                    if (newStatus === 'unhealthy') {
+                        const circuit = this.#circuits.get(name);
+                        if (circuit && circuit.state !== 'open') {
+                            circuit.open();
+                            this.emit('circuit:open', {
+                                name,
+                                reason: 'health-check-failed',
+                                timestamp: Date.now()
+                            });
+                        }
                     }
+
+                    // Close circuit when health recovers
+                    if (newStatus === 'healthy') {
+                        const circuit = this.#circuits.get(name);
+                        if (circuit && circuit.state === 'open') {
+                            circuit.reset();
+                            this.emit('circuit:close', {
+                                name,
+                                reason: 'health-recovered',
+                                timestamp: Date.now()
+                            });
+                        }
+                    }
+
+                    this.emit('health:changed', {
+                        name,
+                        previous: previousStatus,
+                        current: newStatus,
+                        timestamp: Date.now(),
+                    });
                 }
 
-                this.emit('health:changed', {
+                // Emit error event if health check failed with an error
+                if (result.error) {
+                    this.emit('error', {
+                        name,
+                        error: result.error,
+                        context: 'health-check',
+                        message: result.error.message,
+                        timestamp: Date.now()
+                    });
+                }
+            } catch (err) {
+                /* c8 ignore start -- defensive error handling for unexpected runtime errors */
+                const previousStatus = this.#healthMonitor.getStatus(name);
+                this.#healthMonitor.setStatus(name, 'unhealthy');
+
+                if (previousStatus !== 'unhealthy') {
+                    this.emit('health:changed', {
+                        name,
+                        previous: previousStatus,
+                        current: 'unhealthy',
+                        timestamp: Date.now(),
+                    });
+                }
+
+                this.emit('error', {
                     name,
-                    previous: previousStatus,
-                    current: newStatus,
-                    timestamp: Date.now(),
+                    error: err,
+                    context: 'health-check',
+                    message: err.message,
+                    timestamp: Date.now()
                 });
+                /* c8 ignore stop */
             }
-        }
+        });
+
+        // Wait for all checks to complete (don't fail if one fails)
+        await Promise.allSettled(checks);
     }
 }

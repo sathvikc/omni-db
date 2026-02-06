@@ -56,13 +56,33 @@ export class CircuitBreaker {
     /**
      * Create a new CircuitBreaker.
      * @param {CircuitBreakerConfig} [config={}]
+     * @throws {Error} If configuration values are invalid
      */
     constructor(config = {}) {
-        this.#threshold = config.threshold ?? 5;
-        this.#resetTimeout = typeof config.resetTimeout === 'string'
-            ? parseDuration(config.resetTimeout)
-            : (config.resetTimeout ?? 30000);
-        this.#halfOpenSuccesses = config.halfOpenSuccesses ?? 2;
+        // Validate threshold
+        const threshold = config.threshold ?? 5;
+        if (typeof threshold !== 'number' || threshold < 1) {
+            throw new Error('threshold must be a positive number (>= 1)');
+        }
+        this.#threshold = Math.floor(threshold);
+
+        // Validate and parse resetTimeout
+        if (typeof config.resetTimeout === 'string') {
+            this.#resetTimeout = parseDuration(config.resetTimeout);
+        } else {
+            const timeout = config.resetTimeout ?? 30000;
+            if (typeof timeout !== 'number' || timeout < 0) {
+                throw new Error('resetTimeout must be a positive number or duration string');
+            }
+            this.#resetTimeout = timeout;
+        }
+
+        // Validate halfOpenSuccesses
+        const halfOpenSuccesses = config.halfOpenSuccesses ?? 2;
+        if (typeof halfOpenSuccesses !== 'number' || halfOpenSuccesses < 1) {
+            throw new Error('halfOpenSuccesses must be a positive number (>= 1)');
+        }
+        this.#halfOpenSuccesses = Math.floor(halfOpenSuccesses);
     }
 
     /**

@@ -20,10 +20,43 @@ export class FailoverRouter {
     /**
      * Create a new FailoverRouter.
      * @param {Record<string, string>} [failoverConfig={}] - Mapping of primary to backup names
+     * @throws {Error} If circular failover is detected
      */
     constructor(failoverConfig = {}) {
         for (const [primary, backup] of Object.entries(failoverConfig)) {
+            // Check for self-reference
+            if (primary === backup) {
+                throw new Error(
+                    `Invalid failover configuration: "${primary}" cannot fail over to itself`
+                );
+            }
             this.#failoverMap.set(primary, backup);
+        }
+
+        // Detect circular chains
+        this.#validateNoCircularChains();
+    }
+
+    /**
+     * Validate that no circular failover chains exist.
+     * @private
+     * @throws {Error} If circular chain is detected
+     */
+    #validateNoCircularChains() {
+        for (const [primary] of this.#failoverMap) {
+            const visited = new Set([primary]);
+            let current = this.#failoverMap.get(primary);
+
+            while (current) {
+                if (visited.has(current)) {
+                    const chain = [...visited, current].join(' → ');
+                    throw new Error(
+                        `Circular failover detected: ${chain}. Each connection can only appear once in the failover chain.`
+                    );
+                }
+                visited.add(current);
+                current = this.#failoverMap.get(current);
+            }
         }
     }
 
