@@ -240,7 +240,34 @@ export class Orchestrator extends EventEmitter {
         }
 
         for (const name of this.#registry.list()) {
-            this.emit('disconnected', { name, timestamp: Date.now() });
+            try {
+                const client = this.#registry.get(name);
+
+                // Attempt to close connection using common patterns
+                if (client && typeof client === 'object') {
+                    if (typeof client.end === 'function') {
+                        await client.end();
+                    } else if (typeof client.close === 'function') {
+                        await client.close();
+                    } else if (typeof client.quit === 'function') {
+                        await client.quit();
+                    } else if (typeof client.disconnect === 'function') {
+                        await client.disconnect();
+                    } else if (typeof client.$disconnect === 'function') {
+                        await client.$disconnect();
+                    }
+                }
+
+                this.emit('disconnected', { name, timestamp: Date.now() });
+            } catch (err) {
+                this.emit('error', {
+                    name,
+                    error: err,
+                    context: 'disconnect',
+                    message: err.message,
+                    timestamp: Date.now()
+                });
+            }
         }
 
         this.#connected = false;
