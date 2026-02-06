@@ -45,6 +45,7 @@ failover: {
 - Both primary and backup must exist in `connections`
 - Backup must exist in `connections`
 - Failover only triggers if health checks are configured
+- **Circular failover is detected and throws an error** (e.g., `a → b → a`)
 
 ## healthCheck (optional)
 
@@ -54,6 +55,7 @@ Configures periodic health monitoring.
 healthCheck: {
   interval: '30s',        // How often to check (default: '30s')
   timeout: '5s',          // Max time per check (default: '5s')
+  retry: { ... },         // Optional: retry configuration
   checks: { ... },        // Custom check functions
 }
 ```
@@ -66,8 +68,10 @@ How often to run health checks. Supports duration strings:
 |--------|----------|
 | Seconds | `'5s'`, `'30s'` |
 | Minutes | `'1m'`, `'5m'` |
-| Hours | `'1h'` |
+| Hours | `'1h'` (max 24h) |
 | Milliseconds | `'500ms'` |
+
+**Note:** Zero and negative durations are rejected. Maximum duration is 24 hours.
 
 ### timeout
 
@@ -100,8 +104,59 @@ checks: {
 
 **Rules:**
 - Functions must return a boolean (or throw for unhealthy)
+- Functions can also return `'healthy'`, `'degraded'`, or `'unhealthy'` strings
 - Thrown errors are caught and treated as unhealthy
 - Connections without a check function are assumed healthy
+- Health checks run in parallel for better performance
+
+### retry
+
+Optional retry configuration for health checks:
+
+```javascript
+retry: {
+  retries: 2,      // Number of retries before marking unhealthy (default: 0)
+  delay: '100ms',  // Delay between retries (default: '100ms')
+}
+```
+
+## circuitBreaker (optional)
+
+Configures circuit breaker protection to prevent cascading failures.
+
+```javascript
+circuitBreaker: {
+  threshold: 5,           // Failures before opening (default: 5)
+  resetTimeout: '30s',    // Time before half-open (default: 30000ms)
+  halfOpenSuccesses: 2,   // Successes to close (default: 2)
+}
+```
+
+### threshold
+
+Number of consecutive failures before the circuit opens. **Must be >= 1.**
+
+### resetTimeout
+
+Time to wait before attempting to recover (half-open state). Accepts duration strings or milliseconds. **Must be positive.**
+
+### halfOpenSuccesses
+
+Number of successful operations required in half-open state to close the circuit. **Must be >= 1.**
+
+### External Circuit Breakers
+
+You can use external libraries like `opossum` or `cockatiel`:
+
+```javascript
+import CircuitBreaker from 'opossum';
+
+circuitBreaker: {
+  use: new CircuitBreaker(asyncFn, { timeout: 3000 })
+}
+```
+
+**Note:** External circuit breakers are validated at construction time. They must have either an `execute()` or `fire()` method.
 
 ## Full Example
 
@@ -120,11 +175,20 @@ const db = new Orchestrator({
   healthCheck: {
     interval: '30s',
     timeout: '5s',
+    retry: {
+      retries: 2,
+      delay: '100ms',
+    },
     checks: {
       primary: async (c) => c.ping(),
       replica: async (c) => c.ping(),
       cache: async (c) => (await c.ping()) === 'PONG',
     },
+  },
+  circuitBreaker: {
+    threshold: 5,
+    resetTimeout: '30s',
+    halfOpenSuccesses: 2,
   },
 });
 ```
