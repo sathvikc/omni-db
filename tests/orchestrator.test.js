@@ -189,6 +189,61 @@ describe('Orchestrator', () => {
 
             expect(handler).toHaveBeenCalledTimes(1);
         });
+
+        it('should call .end() on clients that support it (e.g. Postgres)', async () => {
+            const client = { end: vi.fn().mockResolvedValue() };
+            const db = new Orchestrator({
+                connections: { db1: client },
+            });
+
+            await db.connect();
+            await db.disconnect();
+
+            expect(client.end).toHaveBeenCalled();
+        });
+
+        it('should call .close() on clients that support it (e.g. Mongo)', async () => {
+            const client = { close: vi.fn().mockResolvedValue() };
+            const db = new Orchestrator({
+                connections: { db1: client },
+            });
+
+            await db.connect();
+            await db.disconnect();
+
+            expect(client.close).toHaveBeenCalled();
+        });
+
+        it('should call .quit() on clients that support it (e.g. Redis)', async () => {
+            const client = { quit: vi.fn().mockResolvedValue() };
+            const db = new Orchestrator({
+                connections: { db1: client },
+            });
+
+            await db.connect();
+            await db.disconnect();
+
+            expect(client.quit).toHaveBeenCalled();
+        });
+
+        it('should handle disconnect errors gracefully', async () => {
+            const client = { end: vi.fn().mockRejectedValue(new Error('Close failed')) };
+            const db = new Orchestrator({
+                connections: { db1: client },
+            });
+
+            const errorSpy = vi.fn();
+            db.on('error', errorSpy);
+
+            await db.connect();
+            await db.disconnect();
+
+            expect(errorSpy).toHaveBeenCalledWith(expect.objectContaining({
+                context: 'disconnect',
+                message: 'Close failed'
+            }));
+            expect(db.isConnected).toBe(false);
+        });
     });
 
     describe('get()', () => {
