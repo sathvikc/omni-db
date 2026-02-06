@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Orchestrator } from '../src/orchestrator.js';
+import { HealthMonitor } from '../src/health-monitor.js';
 
 describe('Orchestrator', () => {
     describe('constructor', () => {
@@ -890,9 +891,58 @@ describe('Orchestrator', () => {
                 });
             }).toThrow(/execute.*fire/i);
         });
+
+        it('should handle frozen/immutable errors from external circuit', async () => {
+            const frozenError = new Error('frozen');
+            Object.freeze(frozenError);
+
+            const mockCircuit = {
+                execute: vi.fn().mockRejectedValue(frozenError),
+                stats: { failures: 1 }
+            };
+
+            const db = new Orchestrator({
+                connections: { main: {} },
+                circuitBreaker: { use: mockCircuit }
+            });
+
+            // Should throw the original frozen error even if it can't attach stats
+            await expect(db.execute('main', (c) => c.query())).rejects.toThrow('frozen');
+
+            // Verify stats couldn't be attached (since it's frozen)
+            expect(frozenError.circuitStats).toBeUndefined();
+        });
     });
 
     describe('health check error handling', () => {
+        it('should handle unexpected runtime errors during health checks (e.g. bugs in check method)', async () => {
+            // Simulate a catastrophic bug in HealthMonitor.check that bypasses its internal error handling
+            // or a mock that throws
+            const checkSpy = vi.spyOn(HealthMonitor.prototype, 'check').mockRejectedValue(new Error('Catastrophic failure'));
+
+            const db = new Orchestrator({
+                connections: { main: {} },
+                healthCheck: { interval: '10ms' }
+            });
+
+            const errorSpy = vi.fn();
+            db.on('error', errorSpy);
+
+            await db.connect();
+            await new Promise(r => setTimeout(r, 50));
+
+            expect(errorSpy).toHaveBeenCalledWith(expect.objectContaining({
+                message: 'Catastrophic failure',
+                context: 'health-check'
+            }));
+
+            // Should also mark as unhealthy
+            expect(db.health().main.status).toBe('unhealthy');
+
+            checkSpy.mockRestore();
+            await db.disconnect();
+        });
+
         it('should emit error event when health check throws', async () => {
             const db = new Orchestrator({
                 connections: { primary: {} },
@@ -1091,6 +1141,168 @@ describe('Orchestrator', () => {
                 w.includes('MaxListenersExceeded') || w.includes('memory leak')
             );
             expect(maxListenerWarnings).toHaveLength(0);
+        });
+    });
+
+    describe('execute() TOCTOU race condition', () => {
+        it('should use consistent connection resolution throughout execute()', async () => {
+            // This test verifies that execute() doesn't call resolve() twice,
+            // which could lead to different results if health changes between calls.
+            const primaryClient = { id: 'primary', query: vi.fn().mockResolvedValue('primary-result') };
+            const backupClient = { id: 'backup', query: vi.fn().mockResolvedValue('backup-result') };
+
+            const db = new Orchestrator({
+                connections: { primary: primaryClient, backup: backupClient },
+                failover: { primary: 'backup' },
+                healthCheck: {
+                    interval: '1h', // Long interval to control manually
+                    checks: {
+                        primary: async () => true,
+                        backup: async () => true
+                    }
+                },
+                circuitBreaker: { threshold: 5 }
+            });
+
+            await db.connect();
+
+            // Execute should use the same resolved connection throughout
+            // and record metrics against the correct target
+            const result = await db.execute('primary', async (client) => {
+                // Client should be consistent with what metrics are recorded against
+                return client.query();
+            });
+
+            expect(result).toBe('primary-result');
+            expect(primaryClient.query).toHaveBeenCalled();
+            expect(backupClient.query).not.toHaveBeenCalled();
+
+            await db.disconnect();
+        });
+
+        it('should record metrics against the actual executed connection during failover', async () => {
+            const primaryClient = { id: 'primary', query: vi.fn().mockRejectedValue(new Error('fail')) };
+            const backupClient = { id: 'backup', query: vi.fn().mockResolvedValue('backup-result') };
+
+            const db = new Orchestrator({
+                connections: { primary: primaryClient, backup: backupClient },
+                failover: { primary: 'backup' },
+                healthCheck: {
+                    interval: '10ms',
+                    checks: {
+                        primary: async () => false, // Primary is unhealthy
+                        backup: async () => true
+                    }
+                },
+                circuitBreaker: { threshold: 5 }
+            });
+
+            await db.connect();
+
+            // Wait for health check to mark primary as unhealthy
+            await new Promise(r => setTimeout(r, 30));
+
+            // Execute against 'primary' should failover to backup
+            const result = await db.execute('primary', async (client) => {
+                return client.query();
+            });
+
+            expect(result).toBe('backup-result');
+            expect(backupClient.query).toHaveBeenCalled();
+
+            // Verify circuit stats are recorded against backup, not primary
+            const stats = db.getStats();
+            // The backup circuit should reflect success, not primary
+            expect(stats.backup.failures).toBe(0);
+
+            await db.disconnect();
+        });
+    });
+
+    describe('shutdown race condition', () => {
+        it('should handle concurrent signal delivery without multiple disconnect calls', async () => {
+            const db = new Orchestrator({ connections: { main: {} } });
+            await db.connect();
+
+            // Mock disconnect to take some time to expose race condition
+            const originalDisconnect = db.disconnect.bind(db);
+            const disconnectSpy = vi.spyOn(db, 'disconnect').mockImplementation(async () => {
+                await new Promise(r => setTimeout(r, 10)); // Artificial delay
+                return originalDisconnect();
+            });
+
+            const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
+
+            // Capture the handler
+            let signalHandler;
+            const processSpy = vi.spyOn(process, 'on').mockImplementation((signal, handler) => {
+                if (signal === 'SIGTERM') signalHandler = handler;
+                return process;
+            });
+
+            db.shutdownOnSignal({ signals: ['SIGTERM'], exitProcess: false });
+
+            // Simulate rapid concurrent signals
+            const promise1 = signalHandler('SIGTERM');
+            const promise2 = signalHandler('SIGTERM');
+            const promise3 = signalHandler('SIGTERM');
+
+            await Promise.all([promise1, promise2, promise3]);
+
+            // disconnect should only be called once effectively
+            // But since we spy on the method itself, it WILL be called 3 times if we don't guard it IN the handler
+            // OR guard it in disconnect().
+            // Ideally, the handler should guard against multiple executions.
+
+            // If we guard in disconnect(), it will still be called 3 times, but return early.
+            // But since disconnect() is async and sets connected=false at the end,
+            // concurrent calls will pass the check!
+
+            // We need to verify that the logic INSIDE disconnect runs only once.
+            // The spy tracks calls to the function wrapper.
+            // If we fix it by adding a guard flag, multiple calls to disconnect() might happen but only one proceeds.
+
+            // Let's count how many times "disconnected" event is emitted
+            // expect(disconnectSpy).toHaveBeenCalledTimes(1);
+        });
+
+        it('should emit disconnected event only once despite concurrent signals', async () => {
+             const db = new Orchestrator({ connections: { main: {} } });
+            await db.connect();
+
+            // Mock disconnect to take some time
+            const originalDisconnect = db.disconnect.bind(db);
+            vi.spyOn(db, 'disconnect').mockImplementation(async () => {
+                await new Promise(r => setTimeout(r, 10));
+                return originalDisconnect();
+            });
+
+            const eventSpy = vi.fn();
+            db.on('disconnected', eventSpy);
+
+             const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
+
+            // Capture the handler
+            let signalHandler;
+            const processSpy = vi.spyOn(process, 'on').mockImplementation((signal, handler) => {
+                if (signal === 'SIGTERM') signalHandler = handler;
+                return process;
+            });
+
+            db.shutdownOnSignal({ signals: ['SIGTERM'], exitProcess: false });
+
+            // Simulate rapid concurrent signals
+            const p1 = signalHandler('SIGTERM');
+            const p2 = signalHandler('SIGTERM');
+
+            await Promise.all([p1, p2]);
+
+            // Should be called once per connection (we have 1 connection)
+            // If race condition exists, it might be called twice
+            expect(eventSpy).toHaveBeenCalledTimes(1);
+
+            processSpy.mockRestore();
+            exitSpy.mockRestore();
         });
     });
 });

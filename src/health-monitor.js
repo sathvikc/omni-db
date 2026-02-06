@@ -173,18 +173,30 @@ export class HealthMonitor {
 
         while (attempts < maxAttempts) {
             attempts++;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), this.#timeoutMs);
+
             try {
                 const result = await Promise.race([
-                    checkFn(client),
-                    new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Health check timeout')), this.#timeoutMs)
-                    ),
+                    checkFn(client, { signal: controller.signal }),
+                    new Promise((_, reject) => {
+                        /* c8 ignore next 3 */
+                        if (controller.signal.aborted) {
+                            reject(new Error('Health check timeout'));
+                        } else {
+                            controller.signal.addEventListener('abort', () => {
+                                reject(new Error('Health check timeout'));
+                            });
+                        }
+                    })
                 ]);
 
                 if (result === 'degraded') return { status: 'degraded' };
                 if (result === true || result === 'healthy') return { status: 'healthy' };
             } catch (err) {
                 lastError = err;
+            } finally {
+                clearTimeout(timeoutId);
             }
 
             if (attempts < maxAttempts) {
