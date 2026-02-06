@@ -1226,16 +1226,16 @@ describe('Orchestrator', () => {
 
             // Mock disconnect to take some time to expose race condition
             const originalDisconnect = db.disconnect.bind(db);
-            const disconnectSpy = vi.spyOn(db, 'disconnect').mockImplementation(async () => {
+            vi.spyOn(db, 'disconnect').mockImplementation(async () => {
                 await new Promise(r => setTimeout(r, 10)); // Artificial delay
                 return originalDisconnect();
             });
 
-            const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {});
+            vi.spyOn(process, 'exit').mockImplementation(() => {});
 
             // Capture the handler
             let signalHandler;
-            const processSpy = vi.spyOn(process, 'on').mockImplementation((signal, handler) => {
+            vi.spyOn(process, 'on').mockImplementation((signal, handler) => {
                 if (signal === 'SIGTERM') signalHandler = handler;
                 return process;
             });
