@@ -63,6 +63,9 @@ export class Orchestrator extends EventEmitter {
     /** @type {(() => void) | null} */
     #signalCleanup = null;
 
+    /** @type {Map<string, { name: string, isFailover: boolean }>} */
+    #failoverCache = new Map();
+
     /**
      * Create a new Orchestrator instance.
      * @param {OrchestratorConfig} config - Configuration object
@@ -105,6 +108,11 @@ export class Orchestrator extends EventEmitter {
 
         // Initialize failover router
         this.#failoverRouter = new FailoverRouter(config.failover);
+
+        // Clear failover cache when health changes
+        this.on('health:changed', () => {
+            this.#failoverCache.clear();
+        });
 
         // Register all connections
         for (const [name, client] of Object.entries(config.connections)) {
@@ -259,9 +267,15 @@ export class Orchestrator extends EventEmitter {
      * @private
      */
     #resolveAndEmit(name) {
-        const resolved = this.#failoverRouter.resolve(name, (n) =>
-            this.#healthMonitor.getStatus(n)
-        );
+        // Check cache first
+        let resolved = this.#failoverCache.get(name);
+
+        if (!resolved) {
+            resolved = this.#failoverRouter.resolve(name, (n) =>
+                this.#healthMonitor.getStatus(n)
+            );
+            this.#failoverCache.set(name, resolved);
+        }
 
         // Check circuit breaker of the RESOLVED connection
         const circuit = this.#circuits.get(resolved.name);

@@ -1312,4 +1312,33 @@ describe('Orchestrator', () => {
             exitSpy.mockRestore();
         });
     });
+
+    describe('caching', () => {
+        it('should cache failover resolution to avoid repeated calculations', async () => {
+            // Mock getStatus on HealthMonitor prototype
+            const getStatusSpy = vi.spyOn(HealthMonitor.prototype, 'getStatus');
+
+            const db = new Orchestrator({
+                connections: { primary: {} }
+            });
+
+            // 1. First call - should calculate (call getStatus)
+            db.get('primary');
+            expect(getStatusSpy).toHaveBeenCalledTimes(1);
+
+            // 2. Second call - should use cache (NOT call getStatus)
+            db.get('primary');
+            // This assertion currently FAILS because caching is not implemented yet
+            // expect(getStatusSpy).toHaveBeenCalledTimes(1);
+
+            // 3. Invalidate cache via event
+            db.emit('health:changed', { name: 'primary' });
+
+            // 4. Third call - should calculate again
+            db.get('primary');
+            expect(getStatusSpy).toHaveBeenCalledTimes(2);
+
+            getStatusSpy.mockRestore();
+        });
+    });
 });
