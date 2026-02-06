@@ -216,4 +216,66 @@ describe('CircuitBreaker', () => {
             vi.useRealTimers();
         });
     });
+
+    describe('input validation', () => {
+        it('should reject negative threshold', () => {
+            expect(() => {
+                new CircuitBreaker({ threshold: -1 });
+            }).toThrow(/threshold.*positive/i);
+        });
+
+        it('should reject zero threshold', () => {
+            expect(() => {
+                new CircuitBreaker({ threshold: 0 });
+            }).toThrow(/threshold.*positive/i);
+        });
+
+        it('should reject non-integer threshold by flooring', () => {
+            const circuit = new CircuitBreaker({ threshold: 2.7 });
+            // Should floor to 2, so 2 failures should open it
+            circuit.failure();
+            circuit.failure();
+            expect(circuit.state).toBe('open');
+        });
+
+        it('should reject negative resetTimeout', () => {
+            expect(() => {
+                new CircuitBreaker({ resetTimeout: -1000 });
+            }).toThrow(/resetTimeout.*positive/i);
+        });
+
+        it('should reject negative halfOpenSuccesses', () => {
+            expect(() => {
+                new CircuitBreaker({ halfOpenSuccesses: -1 });
+            }).toThrow(/halfOpenSuccesses.*positive/i);
+        });
+
+        it('should reject zero halfOpenSuccesses', () => {
+            expect(() => {
+                new CircuitBreaker({ halfOpenSuccesses: 0 });
+            }).toThrow(/halfOpenSuccesses.*positive/i);
+        });
+    });
+
+    describe('clock skew protection', () => {
+        it('should handle very long open states gracefully', () => {
+            vi.useFakeTimers();
+
+            const circuit = new CircuitBreaker({
+                threshold: 1,
+                resetTimeout: 1000
+            });
+
+            circuit.failure();
+            expect(circuit.state).toBe('open');
+
+            // Advance way past the timeout (simulating container resume)
+            vi.advanceTimersByTime(1000000); // ~16 minutes
+
+            // Should still transition to half-open correctly
+            expect(circuit.state).toBe('half-open');
+
+            vi.useRealTimers();
+        });
+    });
 });

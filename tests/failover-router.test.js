@@ -204,4 +204,50 @@ describe('FailoverRouter', () => {
             expect(router.getMappings()).toEqual({});
         });
     });
+
+    describe('circular failover detection', () => {
+        it('should throw on self-referential failover (A -> A)', () => {
+            expect(() => {
+                new FailoverRouter({ primary: 'primary' });
+            }).toThrow(/circular|itself/i);
+        });
+
+        it('should throw on simple circular chain (A -> B -> A)', () => {
+            expect(() => {
+                new FailoverRouter({
+                    primary: 'backup',
+                    backup: 'primary'
+                });
+            }).toThrow(/circular/i);
+        });
+
+        it('should throw on complex circular chain (A -> B -> C -> A)', () => {
+            expect(() => {
+                new FailoverRouter({
+                    a: 'b',
+                    b: 'c',
+                    c: 'a'
+                });
+            }).toThrow(/circular/i);
+        });
+
+        it('should allow valid non-circular failover chains', () => {
+            expect(() => {
+                new FailoverRouter({
+                    primary: 'secondary',
+                    secondary: 'tertiary'
+                    // tertiary has no failover - chain ends
+                });
+            }).not.toThrow();
+        });
+
+        it('should allow independent failover pairs', () => {
+            expect(() => {
+                new FailoverRouter({
+                    db1: 'db1-backup',
+                    db2: 'db2-backup'
+                });
+            }).not.toThrow();
+        });
+    });
 });
