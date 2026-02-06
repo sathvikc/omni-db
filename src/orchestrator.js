@@ -515,6 +515,7 @@ export class Orchestrator extends EventEmitter {
      * @private
      */
     async #runHealthChecks() {
+        const timestamp = Date.now();
         const checks = this.#registry.list().map(async (name) => {
             try {
                 const client = this.#registry.get(name);
@@ -533,7 +534,7 @@ export class Orchestrator extends EventEmitter {
                             this.emit('circuit:open', {
                                 name,
                                 reason: 'health-check-failed',
-                                timestamp: Date.now()
+                                timestamp
                             });
                         }
                     }
@@ -546,7 +547,7 @@ export class Orchestrator extends EventEmitter {
                             this.emit('circuit:close', {
                                 name,
                                 reason: 'health-recovered',
-                                timestamp: Date.now()
+                                timestamp
                             });
                         }
                     }
@@ -555,7 +556,7 @@ export class Orchestrator extends EventEmitter {
                         name,
                         previous: previousStatus,
                         current: newStatus,
-                        timestamp: Date.now(),
+                        timestamp,
                     });
                 }
 
@@ -566,7 +567,7 @@ export class Orchestrator extends EventEmitter {
                         error: result.error,
                         context: 'health-check',
                         message: result.error.message,
-                        timestamp: Date.now()
+                        timestamp
                     });
                 }
             } catch (err) {
@@ -579,7 +580,7 @@ export class Orchestrator extends EventEmitter {
                         name,
                         previous: previousStatus,
                         current: 'unhealthy',
-                        timestamp: Date.now(),
+                        timestamp,
                     });
                 }
 
@@ -588,7 +589,7 @@ export class Orchestrator extends EventEmitter {
                     error: err,
                     context: 'health-check',
                     message: err.message,
-                    timestamp: Date.now()
+                    timestamp
                 });
             }
         });
