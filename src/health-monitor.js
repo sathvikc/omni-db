@@ -24,6 +24,7 @@
  * Parse duration string to milliseconds.
  * @param {string} duration - Duration string (e.g., '30s', '5m', '1h')
  * @returns {number} Milliseconds
+ * @throws {Error} If duration is invalid or out of range
  */
 export function parseDuration(duration) {
     if (typeof duration !== 'string') {
@@ -37,6 +38,16 @@ export function parseDuration(duration) {
 
     const value = parseInt(match[1], 10);
     const unit = match[2];
+
+    // Validate positive value
+    if (value <= 0) {
+        throw new Error(`Duration must be positive, got: "${duration}"`);
+    }
+
+    // Validate reasonable upper bounds
+    if (unit === 'h' && value > 24) {
+        throw new Error(`Duration too large: "${duration}". Maximum is 24 hours.`);
+    }
 
     const multipliers = {
         ms: 1,
@@ -145,19 +156,20 @@ export class HealthMonitor {
      * Check health of a single connection.
      * @param {string} name - Connection name
      * @param {unknown} client - The database client
-     * @returns {Promise<HealthStatus>} The health status
+     * @returns {Promise<{status: HealthStatus, error?: Error}>} The health status and optional error
      */
     async check(name, client) {
         const checkFn = this.#checks.get(name);
 
         if (!checkFn) {
             // No custom check, assume healthy
-            return 'healthy';
+            return { status: 'healthy' };
         }
 
         let attempts = 0;
         const maxAttempts = (this.#retryConfig?.retries || 0) + 1;
         const delayMs = this.#retryConfig?.delayMs || 100;
+        let lastError = null;
 
         while (attempts < maxAttempts) {
             attempts++;
@@ -169,10 +181,10 @@ export class HealthMonitor {
                     ),
                 ]);
 
-                if (result === 'degraded') return 'degraded';
-                if (result === true || result === 'healthy') return 'healthy';
-            } catch {
-                // Ignore error and retry
+                if (result === 'degraded') return { status: 'degraded' };
+                if (result === true || result === 'healthy') return { status: 'healthy' };
+            } catch (err) {
+                lastError = err;
             }
 
             if (attempts < maxAttempts) {
@@ -180,7 +192,7 @@ export class HealthMonitor {
             }
         }
 
-        return 'unhealthy';
+        return { status: 'unhealthy', error: lastError };
     }
 
     /**
