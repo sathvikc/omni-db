@@ -88,7 +88,17 @@ export class Orchestrator extends EventEmitter {
             throw new Error('At least one connection must be provided');
         }
 
-
+        // Validate failover targets exist in connections
+        if (config.failover) {
+            for (const [primary, backup] of Object.entries(config.failover)) {
+                if (!config.connections[backup]) {
+                    throw new Error(
+                        `Failover config error: backup "${backup}" for primary "${primary}" ` +
+                        `not found in connections. Available: ${connectionNames.join(', ')}`
+                    );
+                }
+            }
+        }
 
         // Initialize health monitor
         this.#healthMonitor = new HealthMonitor(config.healthCheck);

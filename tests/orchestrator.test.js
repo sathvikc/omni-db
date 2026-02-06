@@ -54,6 +54,13 @@ describe('Orchestrator', () => {
                 'At least one connection must be provided'
             );
         });
+
+        it('should throw if failover target does not exist in connections', () => {
+            expect(() => new Orchestrator({
+                connections: { primary: {} },
+                failover: { primary: 'backup' } // 'backup' does not exist
+            })).toThrow(/Failover config error:.*backup/);
+        });
     });
 
     describe('connect()', () => {
