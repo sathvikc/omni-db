@@ -151,20 +151,26 @@ export interface ExternalCircuitBreaker {
 export interface CircuitBreakerConfig {
     /**
      * Number of failures before opening circuit.
+     * Must be a positive integer (>= 1).
      * @default 5
+     * @throws Error if value is less than 1
      */
     threshold?: number;
 
     /**
      * Time before attempting half-open state.
+     * Must be a positive number or valid duration string.
      * @example '30s', '1m', 5000
      * @default 30000
+     * @throws Error if value is negative
      */
     resetTimeout?: string | number;
 
     /**
      * Number of successes needed to close from half-open.
+     * Must be a positive integer (>= 1).
      * @default 2
+     * @throws Error if value is less than 1
      */
     halfOpenSuccesses?: number;
 
@@ -172,16 +178,18 @@ export interface CircuitBreakerConfig {
      * External circuit breaker instance (e.g., opossum, cockatiel).
      * When provided, the built-in circuit breaker is not used.
      * The external instance must have either execute() or fire() method.
-     * 
+     * Validated at construction time.
+     *
      * @example
      * ```typescript
      * import CircuitBreaker from 'opossum';
-     * 
+     *
      * const db = new Orchestrator({
      *   connections: { primary: pg },
      *   circuitBreaker: { use: new CircuitBreaker(fn, opts) }
      * });
      * ```
+     * @throws Error if external circuit lacks execute() or fire() method
      */
     use?: ExternalCircuitBreaker;
 }
@@ -249,6 +257,22 @@ export interface ShutdownEvent {
 }
 
 /**
+ * Error event payload.
+ */
+export interface ErrorEvent {
+    /** Connection name where the error occurred */
+    name: string;
+    /** The error that occurred */
+    error: Error;
+    /** Context where the error occurred (e.g., 'health-check') */
+    context: string;
+    /** Error message */
+    message: string;
+    /** Unix timestamp when the event occurred */
+    timestamp: number;
+}
+
+/**
  * Connected event payload.
  */
 export interface ConnectedEvent {
@@ -290,9 +314,9 @@ export interface OrchestratorEvents {
     recovery: [event: RecoveryEvent];
     'health:changed': [event: HealthChangedEvent];
     shutdown: [event: ShutdownEvent];
-    'circuit:open': [event: CircuitEvent];
-    'circuit:close': [event: CircuitEvent];
-    error: [error: Error];
+    'circuit:open': [event: CircuitEvent & { reason?: string }];
+    'circuit:close': [event: CircuitEvent & { reason?: string }];
+    error: [event: ErrorEvent];
 }
 
 // ============================================================================
@@ -625,6 +649,8 @@ export declare class Orchestrator<
  * @param duration Duration string (e.g., '30s', '5m', '1h')
  * @returns Duration in milliseconds
  * @throws Error if format is invalid
+ * @throws Error if value is zero or negative
+ * @throws Error if value exceeds 24 hours
  *
  * @example
  * ```typescript
@@ -634,3 +660,13 @@ export declare class Orchestrator<
  * ```
  */
 export declare function parseDuration(duration: string): number;
+
+/**
+ * Result of a health check operation.
+ */
+export interface HealthCheckResult {
+    /** Health status of the connection */
+    status: HealthStatus;
+    /** Error that occurred during check, if any */
+    error?: Error;
+}
