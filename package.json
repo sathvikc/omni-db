@@ -1,6 +1,6 @@
 {
   "name": "omni-db",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Thin database orchestration library for Node.js - manage multiple connections with health monitoring and failover",
   "type": "module",
   "main": "./src/index.js",
