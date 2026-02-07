@@ -226,6 +226,30 @@ describe('Orchestrator', () => {
             expect(client.quit).toHaveBeenCalled();
         });
 
+        it('should call .disconnect() on clients that support it (Generic)', async () => {
+            const client = { disconnect: vi.fn().mockResolvedValue() };
+            const db = new Orchestrator({
+                connections: { db1: client },
+            });
+
+            await db.connect();
+            await db.disconnect();
+
+            expect(client.disconnect).toHaveBeenCalled();
+        });
+
+        it('should call .$disconnect() on clients that support it (Prisma)', async () => {
+            const client = { $disconnect: vi.fn().mockResolvedValue() };
+            const db = new Orchestrator({
+                connections: { db1: client },
+            });
+
+            await db.connect();
+            await db.disconnect();
+
+            expect(client.$disconnect).toHaveBeenCalled();
+        });
+
         it('should handle disconnect errors gracefully', async () => {
             const client = { end: vi.fn().mockRejectedValue(new Error('Close failed')) };
             const db = new Orchestrator({
