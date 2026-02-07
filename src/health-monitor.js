@@ -193,8 +193,8 @@ export class HealthMonitor {
                     })
                 ]);
 
-                if (result === 'degraded') return { status: 'degraded' };
-                if (result === true || result === 'healthy') return { status: 'healthy' };
+                if (result === 'degraded') return { status: 'degraded', error: undefined };
+                if (result === true || result === 'healthy') return { status: 'healthy', error: undefined };
             } catch (err) {
                 lastError = err;
             } finally {
