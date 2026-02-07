@@ -62,6 +62,7 @@ describe('CircuitBreaker', () => {
 
     describe('half-open state', () => {
         beforeEach(async () => {
+            vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'performance'] });
             // Open the circuit
             for (let i = 0; i < 3; i++) {
                 try {
@@ -70,18 +71,18 @@ describe('CircuitBreaker', () => {
             }
         });
 
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
         it('should transition to half-open after resetTimeout', () => {
-            vi.useFakeTimers();
             vi.advanceTimersByTime(1001);
 
             expect(circuit.state).toBe('half-open');
             expect(circuit.canExecute()).toBe(true);
-
-            vi.useRealTimers();
         });
 
         it('should require multiple successes to close', async () => {
-            vi.useFakeTimers();
             vi.advanceTimersByTime(1001);
 
             expect(circuit.state).toBe('half-open');
@@ -93,12 +94,9 @@ describe('CircuitBreaker', () => {
             // Second success - should close
             await circuit.execute(async () => 'ok');
             expect(circuit.state).toBe('closed');
-
-            vi.useRealTimers();
         });
 
         it('should reopen on failure in half-open', async () => {
-            vi.useFakeTimers();
             vi.advanceTimersByTime(1001);
 
             expect(circuit.state).toBe('half-open');
@@ -108,18 +106,13 @@ describe('CircuitBreaker', () => {
             })).rejects.toThrow('fail');
 
             expect(circuit.state).toBe('open');
-
-            vi.useRealTimers();
         });
 
         it('should transition to half-open when accessing state getter after timeout', async () => {
-            vi.useFakeTimers();
             vi.advanceTimersByTime(1001);
 
             // Accessing state should trigger validation and transition
             expect(circuit.state).toBe('half-open');
-
-            vi.useRealTimers();
         });
     });
 
@@ -182,6 +175,8 @@ describe('CircuitBreaker', () => {
         });
 
         it('should parse string resetTimeout', () => {
+            vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'performance'] });
+
             const stringCircuit = new CircuitBreaker({
                 threshold: 1,
                 resetTimeout: '500ms',
@@ -190,19 +185,19 @@ describe('CircuitBreaker', () => {
             stringCircuit.failure();
             expect(stringCircuit.state).toBe('open');
 
-            vi.useFakeTimers();
             vi.advanceTimersByTime(501);
             expect(stringCircuit.state).toBe('half-open');
             vi.useRealTimers();
         });
 
         it('should use default halfOpenSuccesses of 2', async () => {
+            vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'performance'] });
+
             const defaultCircuit = new CircuitBreaker({ threshold: 1, resetTimeout: 100 });
 
             defaultCircuit.failure();
             expect(defaultCircuit.state).toBe('open');
 
-            vi.useFakeTimers();
             vi.advanceTimersByTime(101);
 
             // One success shouldn't close it
@@ -259,7 +254,7 @@ describe('CircuitBreaker', () => {
 
     describe('clock skew protection', () => {
         it('should handle very long open states gracefully', () => {
-            vi.useFakeTimers();
+            vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'performance'] });
 
             const circuit = new CircuitBreaker({
                 threshold: 1,

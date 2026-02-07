@@ -124,7 +124,7 @@ export class CircuitBreaker {
      * Attempt to transition from open to half-open if timeout valid.
      */
     #tryTransitionToHalfOpen() {
-        if (this.#state === 'open' && this.#nextAttemptTime && Date.now() >= this.#nextAttemptTime) {
+        if (this.#state === 'open' && this.#nextAttemptTime && performance.now() >= this.#nextAttemptTime) {
             this.#state = 'half-open';
             this.#successCount = 0;
         }
@@ -180,7 +180,7 @@ export class CircuitBreaker {
      */
     open() {
         this.#state = 'open';
-        this.#nextAttemptTime = Date.now() + this.#resetTimeout;
+        this.#nextAttemptTime = performance.now() + this.#resetTimeout;
     }
 
     /**
@@ -207,14 +207,14 @@ export class CircuitBreaker {
         if (this.#state === 'half-open') {
             // Failed during half-open, go back to open
             this.#state = 'open';
-            this.#nextAttemptTime = Date.now() + this.#resetTimeout;
+            this.#nextAttemptTime = performance.now() + this.#resetTimeout;
             return true;
         }
 
         if (this.#failures >= this.#threshold) {
             // Too many failures, open the circuit
             this.#state = 'open';
-            this.#nextAttemptTime = Date.now() + this.#resetTimeout;
+            this.#nextAttemptTime = performance.now() + this.#resetTimeout;
             return true;
         }
 
